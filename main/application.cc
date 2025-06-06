@@ -32,6 +32,8 @@
 #include <driver/gpio.h>
 #include <arpa/inet.h>
 
+#include "self_balancing/hal.h"
+
 #define TAG "Application"
 
 
@@ -446,6 +448,7 @@ void Application::Start() {
 
     /* Start the clock timer to update the status bar */
     esp_timer_start_periodic(clock_timer_handle_, 1000000);
+    HAL::Init();
 
     /* Wait for the network to be ready */
     board.StartNetwork();

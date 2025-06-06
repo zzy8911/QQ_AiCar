@@ -42,6 +42,36 @@
 #define DISPLAY_RST_PIN       GPIO_NUM_13
 #define DISPLAY_CS_PIN        GPIO_NUM_10
 
+// self balancing robot
+#define MO0_1 GPIO_NUM_4
+#define MO0_2 GPIO_NUM_5
+#define MO0_3 GPIO_NUM_6
+#define MT6701_SS_0 GPIO_NUM_42
+
+#define MO_EN GPIO_NUM_40
+
+#define MO1_1 GPIO_NUM_7
+#define MO1_2 GPIO_NUM_15
+#define MO1_3 GPIO_NUM_16
+#define MT6701_SS_1 GPIO_NUM_41
+
+// 霍尔传感器
+#define MT6701_SDA 1
+#define MT6701_SCL 2
+
+/* MPU */
+#define MPU6050_SDA     GPIO_NUM_39
+#define MPU6050_SCL     GPIO_NUM_38
+
+#define CONFIG_SCREEN_HOR_RES       240
+#define CONFIG_SCREEN_VER_RES       240
+#define CONFIG_SCREEN_BUFFER_SIZE   (CONFIG_SCREEN_HOR_RES * CONFIG_SCREEN_VER_RES /2)
+
+#define LVGL_RUNNING_CORE   0
+#define ESP32_RUNNING_CORE  1
+
+#define LCD_BK_DEFAULT_BRIGHTNESS  50
+#define LCD_BK_DEFAULT_TIMEOUT     5
 
 #ifdef CONFIG_LCD_ST7789_240X320
 #define LCD_TYPE_ST7789_SERIAL
