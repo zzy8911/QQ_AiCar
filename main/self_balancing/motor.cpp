@@ -1,12 +1,14 @@
-#include "hal/hal.h"
+#include "hal.h"
 #include "motor.h"
-#include <SimpleFOC.h>
-#include "app/Accounts/Account_Master.h"
-#include "nvs.h"
+#include <esp_simplefoc.h>
 
-SPIClass* hspi = NULL;
-SPIClass* hspi_1 = NULL;
-static const int spiClk = 1000000; // 1MHz
+#define TAG "Motor"
+
+bool g_system_calibration = false;
+
+#define SPI_CLK     1000000
+spi_device_handle_t mt6701_handle = NULL;
+spi_device_handle_t mt6701_handle_1 = NULL;
 
 BLDCMotor motor_0 = BLDCMotor(7);
 BLDCDriver3PWM driver = BLDCDriver3PWM(MO0_1, MO0_2, MO0_3);
@@ -21,12 +23,8 @@ enum BALANCE_STATUS {
 
 static BALANCE_STATUS g_balance_status = BALANCE_OFF;
 // low pass filters for user commands - throttle(油门) and steering
-LowPassFilter lpf_throttle = {
-    .Tf = 0.5
-};
-LowPassFilter lpf_steering = {
-    .Tf = 0.5
-};
+LowPassFilter lpf_throttle(0.5);
+LowPassFilter lpf_steering(0.5);
 
 #define MOTOR_MAX_TORQUE 7
 #define BALANCE_WAITTING_TIME  1000
@@ -35,36 +33,22 @@ LowPassFilter lpf_steering = {
 // control algorithm parametersw
 // stabilisation pid
 // 初始值 P0.3 D: 0.02  -- 0.18 0.024
-PIDController pid_stb {
-    .P = 0.3, .I = 0, .D = 0.008, .ramp = 100000, 
-    .limit = MOTOR_MAX_TORQUE 
-}; 
+PIDController pid_stb(0.3, 0, 0.008, 100000, MOTOR_MAX_TORQUE);
 // P = 0.1 I= 0.08
 #define PID_VEL_P (0.3)
 #define PID_VEL_I (0.02)
 #define PID_VEL_D (0.00)
-PIDController pid_vel {
-    .P = PID_VEL_P, .I = PID_VEL_I, .D = PID_VEL_D, .ramp = 100000, 
-    .limit = MOTOR_MAX_TORQUE
-};
-
-PIDController pid_vel_tmp{
-    .P = PID_VEL_P, .I = PID_VEL_I, .D = PID_VEL_D, .ramp = 100000, 
-    .limit = MOTOR_MAX_TORQUE
-};
-
-PIDController pid_steering {
-    .P = 0.01, .I = 0, .D = 0.00, .ramp = 100000, 
-    .limit = MOTOR_MAX_TORQUE / 2
-};
+PIDController pid_vel(PID_VEL_P, PID_VEL_I, PID_VEL_D, 100000, MOTOR_MAX_TORQUE);
+PIDController pid_vel_tmp(PID_VEL_P, PID_VEL_I, PID_VEL_D, 100000, MOTOR_MAX_TORQUE);
+PIDController pid_steering(0.01, 0, 0.00, 100000, MOTOR_MAX_TORQUE / 2);
 
 float g_mid_value = -2; // 偏置参数
 float g_throttle = 0;
 float g_steering = 0;
 //目标变量
 float target_velocity = 0;
-Account* actMotorStatus;
-Account* actBotStatus;
+// Account* actMotorStatus;
+// Account* actBotStatus;
 
 #define MAX_MOTOR_NUM      2
 
@@ -77,31 +61,31 @@ static XKnobConfig x_knob_configs[] = {
     // float snap_point;           
     // char descriptor[50]; 
     [MOTOR_UNBOUND_FINE_DETENTS] = {
-        0,
-        0,
-        1 * PI / 180,
-        2, /* detent_strength_unit */
-        1,
-        1.1,
-        "Fine values\nWith detents", //任意运动的控制  有阻尼 类似于机械旋钮
+        .num_positions = 0,
+        .position = 0,
+        .position_width_radians = 1 * PI / 180,
+        .detent_strength_unit = 2,
+        .endstop_strength_unit = 1,
+        .snap_point = 1.1,
+        .descriptor = "Fine values\nWith detents"
     },
     [MOTOR_UNBOUND_NO_DETENTS] = {
-        0,
-        0,
-        1 * PI / 180,
-        0,
-        0.1,
-        1.1,
-        "Unbounded\nNo detents", //无限制  不制动
+        .num_positions = 0,
+        .position = 0,
+        .position_width_radians = 1 * PI / 180,
+        .detent_strength_unit = 0,
+        .endstop_strength_unit = 0.1,
+        .snap_point = 1.1,
+        .descriptor = "Unbounded\nNo detents"
     },
     [MOTOR_SUPER_DIAL] = {
-        0,
-        0,
-        5 * PI / 180,
-        2,
-        1,
-        1.1,
-        "Super Dial", //无限制  不制动
+        .num_positions = 0,
+        .position = 0,
+        .position_width_radians = 5 * PI / 180,
+        .detent_strength_unit = 2,
+        .endstop_strength_unit = 1,
+        .snap_point = 1.1,
+        .descriptor = "Super Dial"
     },
     [MOTOR_UNBOUND_COARSE_DETENTS] = {
         .num_positions = 0,
@@ -110,62 +94,61 @@ static XKnobConfig x_knob_configs[] = {
         .detent_strength_unit = 2.3,
         .endstop_strength_unit = 1,
         .snap_point = 1.1,
-        "Fine values\nWith detents\nUnbound"
+        .descriptor = "Fine values\nWith detents\nUnbound"
     },
-    [MOTOR_BOUND_0_12_NO_DETENTS]= {
-        13,
-        0,
-        10 * PI / 180,
-        0,
-        1,
-        1.1,
-        "Bounded 0-13\nNo detents",
+    [MOTOR_BOUND_0_12_NO_DETENTS] = {
+        .num_positions = 13,
+        .position = 0,
+        .position_width_radians = 10 * PI / 180,
+        .detent_strength_unit = 0,
+        .endstop_strength_unit = 1,
+        .snap_point = 1.1,
+        .descriptor = "Bounded 0-13\nNo detents"
     },
-    [MOTOR_BOUND_LCD_BK_BRIGHTNESS]= {
-        101,
-        10,
-        2 * PI / 180,
-        2,
-        1,
-        1.1,
-        "Bounded 0-101\nNo detents",
+    [MOTOR_BOUND_LCD_BK_BRIGHTNESS] = {
+        .num_positions = 101,
+        .position = 10,
+        .position_width_radians = 2 * PI / 180,
+        .detent_strength_unit = 2,
+        .endstop_strength_unit = 1,
+        .snap_point = 1.1,
+        .descriptor = "Bounded 0-101\nNo detents"
     },
-    [MOTOR_BOUND_LCD_BK_TIMEOUT]= {
-        31,
-        0,
-        5 * PI / 180,
-        2,
-        1,
-        1.1,
-        "Bounded 0-3601\nNo detents",
+    [MOTOR_BOUND_LCD_BK_TIMEOUT] = {
+        .num_positions = 31,
+        .position = 0,
+        .position_width_radians = 5 * PI / 180,
+        .detent_strength_unit = 2,
+        .endstop_strength_unit = 1,
+        .snap_point = 1.1,
+        .descriptor = "Bounded 0-3601\nNo detents"
     },
     [MOTOR_COARSE_DETENTS] = {
-        32,
-        0,
-        8.225806452 * PI / 180,
-        2,
-        1,
-        1.1,
-        "Coarse values\nStrong detents", //粗糙的棘轮 强阻尼
+        .num_positions = 32,
+        .position = 0,
+        .position_width_radians = 8.225806452 * PI / 180,
+        .detent_strength_unit = 2,
+        .endstop_strength_unit = 1,
+        .snap_point = 1.1,
+        .descriptor = "Coarse values\nStrong detents"
     },
-
     [MOTOR_FINE_NO_DETENTS] = {
-        256,
-        127,
-        1 * PI / 180,
-        0,
-        1,
-        1.1,
-        "Fine values\nNo detents", //任意运动的控制  无阻尼
+        .num_positions = 256,
+        .position = 127,
+        .position_width_radians = 1 * PI / 180,
+        .detent_strength_unit = 0,
+        .endstop_strength_unit = 1,
+        .snap_point = 1.1,
+        .descriptor = "Fine values\nNo detents"
     },
     [MOTOR_ON_OFF_STRONG_DETENTS] = {
-        2, 
-        0,
-        60 * PI / 180, 
-        1,             
-        1,
-        0.55,                    // Note the snap point is slightly past the midpoint (0.5); compare to normal detents which use a snap point *past* the next value (i.e. > 1)
-        "On/off\nStrong detent", //模拟开关  强制动
+        .num_positions = 2,
+        .position = 0,
+        .position_width_radians = 60 * PI / 180,
+        .detent_strength_unit = 1,
+        .endstop_strength_unit = 1,
+        .snap_point = 0.55,
+        .descriptor = "On/off\nStrong detent"
     },
     [MOTOR_RETURN_TO_CENTER] = {
         .num_positions = 1,
@@ -174,9 +157,8 @@ static XKnobConfig x_knob_configs[] = {
         .detent_strength_unit = 1,
         .endstop_strength_unit = 1,
         .snap_point = 1.1,
-        "Return to center"
-    }
-
+        .descriptor = "Return to center"
+    },
 };
 
 XKnobConfig motor_config[MAX_MOTOR_NUM] = {
@@ -216,7 +198,6 @@ static const float IDLE_CORRECTION_MAX_ANGLE_RAD = 5 * PI / 180;
 static const float IDLE_CORRECTION_RATE_ALPHA = 0.0005;
 
 struct motor_stat {
-    
     float current_detent_center;    // 当前相对位置
     uint32_t last_idle_start;       // 上次空闲开始状态
     float idle_check_velocity_ewma; // 怠速检查速度
@@ -229,11 +210,22 @@ struct motor_stat motor_s[MAX_MOTOR_NUM];
 // -------------monitor--------------------
 //目标变量
 static float readMySensorCallback(void) {
-    hspi->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE0));
-    digitalWrite(hspi->pinSS(), LOW);  // pull SS slow to prep other end for transfer
-    uint16_t ag = hspi->transfer16(0);
-    digitalWrite(hspi->pinSS(), HIGH); // pull ss high to signify end of data transfer
-    hspi->endTransaction();
+    spi_transaction_t trans = {
+        .flags = 0,
+        .length = 16,  // 16位数据
+        .rxlength = 16,
+        .tx_buffer = NULL,  // 只读不写
+        .rx_buffer = NULL   // 使用 trans.rx_data
+    };
+
+    esp_err_t ret = spi_device_polling_transmit(mt6701_handle, &trans);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Error reading sensor: %s", esp_err_to_name(ret));
+        return 0;
+    }
+
+    // 从接收到的16位数据中提取角度值
+    uint16_t ag = (trans.rx_data[0] << 8) | trans.rx_data[1];
     ag = ag >> 2;
     float rad = (float)ag * 2 * PI / 16384;
     if (rad < 0) {
@@ -242,9 +234,46 @@ static float readMySensorCallback(void) {
     return rad;
 }
 static void initMySensorCallback(void) {
-    hspi = new SPIClass(HSPI);
-    hspi->begin(MT6701_SCL, MT6701_SDA, -1, MT6701_SS_0); //SCLK, MISO, MOSI, SS
-    pinMode(hspi->pinSS(), OUTPUT); //HSPI SS
+    // 1. 配置 SPI 总线
+    // Only once
+    spi_bus_config_t buscfg = {
+        .mosi_io_num = GPIO_NUM_NC,  // MT6701只需要MISO
+        .miso_io_num = MT6701_SDA,
+        .sclk_io_num = MT6701_SCL,
+        .quadwp_io_num = GPIO_NUM_NC,
+        .quadhd_io_num = GPIO_NUM_NC,
+        .max_transfer_sz = 0,        // 默认值
+        .flags = SPICOMMON_BUSFLAG_MASTER
+    };
+    esp_err_t ret = spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(ret));
+        return;
+    }
+
+    // 2. 配置 SPI 设备
+    spi_device_interface_config_t devcfg = {
+        .command_bits = 0,
+        .address_bits = 0,
+        .dummy_bits = 0,
+        .mode = 1,                    // CPOL=0, CPHA=1
+        .duty_cycle_pos = 128,        // 50% duty cycle
+        .cs_ena_pretrans = 0,
+        .cs_ena_posttrans = 0,
+        .clock_speed_hz = SPI_CLK,    // 1MHz
+        .spics_io_num = MT6701_SS_0,
+        .flags = 0,
+        .queue_size = 1,
+        .pre_cb = NULL,
+        .post_cb = NULL
+    };
+    ret = spi_bus_add_device(SPI2_HOST, &devcfg, &mt6701_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to add SPI device: %s", esp_err_to_name(ret));
+        return;
+    }
+
+    ESP_LOGI(TAG, "MT6701 SPI sensor initialized successfully");
 }
 
 GenericSensor sensor_0 = GenericSensor(readMySensorCallback, initMySensorCallback);
@@ -252,11 +281,21 @@ GenericSensor sensor_0 = GenericSensor(readMySensorCallback, initMySensorCallbac
 //目标变量
 float readMySensorCallback_1(void) 
 {
-    hspi_1->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE0));
-    digitalWrite(hspi_1->pinSS(), LOW); //pull SS slow to prep other end for transfer
-    uint16_t ag = hspi_1->transfer16(0);
-    digitalWrite(hspi_1->pinSS(), HIGH); //pull ss high to signify end of data transfer
-    hspi_1->endTransaction();
+    spi_transaction_t trans = {
+        .flags = 0,
+        .length = 16,  // 16位数据
+        .rxlength = 16,
+        .tx_buffer = NULL,  // 只读不写
+        .rx_buffer = NULL   // 使用 trans.rx_data
+    };
+    esp_err_t ret = spi_device_polling_transmit(mt6701_handle_1, &trans);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Error reading sensor: %s", esp_err_to_name(ret));
+        return 0;
+    }
+
+    // 从接收到的16位数据中提取角度值
+    uint16_t ag = (trans.rx_data[0] << 8) | trans.rx_data[1];
     ag = ag >> 2;
     float rad = (float)ag * 2 * PI / 16384;
     if (rad < 0) {
@@ -266,9 +305,29 @@ float readMySensorCallback_1(void)
 }
 void initMySensorCallback_1(void) 
 {
-    hspi_1 = new SPIClass(HSPI);
-    hspi_1->begin(MT6701_SCL, MT6701_SDA, -1, MT6701_SS_1); //SCLK, MISO, MOSI, SS
-    pinMode(hspi_1->pinSS(), OUTPUT); //HSPI SS
+    // 配置 SPI 设备
+    spi_device_interface_config_t devcfg = {
+        .command_bits = 0,
+        .address_bits = 0,
+        .dummy_bits = 0,
+        .mode = 1,                    // CPOL=0, CPHA=1
+        .duty_cycle_pos = 128,        // 50% duty cycle
+        .cs_ena_pretrans = 0,
+        .cs_ena_posttrans = 0,
+        .clock_speed_hz = SPI_CLK,    // 1MHz
+        .spics_io_num = MT6701_SS_1,
+        .flags = 0,
+        .queue_size = 1,
+        .pre_cb = NULL,
+        .post_cb = NULL
+    };
+    esp_err_t ret = spi_bus_add_device(SPI2_HOST, &devcfg, &mt6701_handle_1);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to add SPI device: %s", esp_err_to_name(ret));
+        return;
+    }
+
+    ESP_LOGI(TAG, "MT6701_1 SPI sensor initialized successfully");
 }
 
 GenericSensor sensor_1 = GenericSensor(readMySensorCallback_1, initMySensorCallback_1);
@@ -309,7 +368,7 @@ void HAL::motor_shake(int id, int strength, int delay_time)
 {
     BLDCMotor *motor = get_motor_by_id(id);
     if (!motor) {
-        log_e("get motor by id %d failed.", id);
+        ESP_LOGE(TAG, "get motor by id %d failed.", id);
         return;
     }
 
@@ -340,10 +399,10 @@ double HAL::get_motor_angle_offset(int id)
 {
     struct motor_stat *ms = motor_status_get_by_id(id);
     if (!ms) {
-        log_e("get ms by id %d failed.", id);
+        ESP_LOGE(TAG, "get ms by id %d failed.", id);
         return 0;
     }
-    // log_e("angel_offset %lf", ms->angle_to_detent_center * 180 / PI);
+    // ESP_LOGE(TAG, "angel_offset %lf", ms->angle_to_detent_center * 180 / PI);
     return ms->angle_to_detent_center * 180 / PI;
 }
 
@@ -351,7 +410,7 @@ void HAL::update_motor_mode(int id, int mode , int init_position)
 {
     BLDCMotor *motor = get_motor_by_id(id);
     if (!motor) {
-        log_e("get motor by id %d failed.", id);
+        ESP_LOGE(TAG, "get motor by id %d failed.", id);
         return;
     }
     motor_config[id] = x_knob_configs[mode];
@@ -378,8 +437,8 @@ static void motor_status_publish(struct motor_stat *ms, int id, bool is_outbound
             .position = motor_config[id].position,
             .angle_offset = ms->angle_to_detent_center * 180 / PI,  // 转换为角度
         };
-        actMotorStatus->Commit((const void*)&info, sizeof(MotorStatusInfo));
-        actMotorStatus->Publish();
+        // actMotorStatus->Commit((const void*)&info, sizeof(MotorStatusInfo));
+        // actMotorStatus->Publish();
         last_position = motor_config[id].position;
     }
     
@@ -476,7 +535,7 @@ static int run_knob_task(BLDCMotor *motor, int id)
 {
     struct motor_stat *ms = &motor_s[id];
     if (ms == NULL) {
-        log_e("motor stats is null !");
+        ESP_LOGE(TAG, "motor stats is null !");
         return -1;
     }
     ms->idle_check_velocity_ewma = motor->shaft_velocity * IDLE_VELOCITY_EWMA_ALPHA + 
@@ -556,11 +615,11 @@ static int run_knob_task(BLDCMotor *motor, int id)
 
 static void act_bot_status_publish(int running_mode)
 {
-    AccountSystem::BotStatusInfo info = {
-        .running_mode = running_mode,
-    };
-    actBotStatus->Commit((const void*)&info, sizeof(AccountSystem::BotStatusInfo));
-    actBotStatus->Publish();
+    // AccountSystem::BotStatusInfo info = {
+    //     .running_mode = running_mode,
+    // };
+    // actBotStatus->Commit((const void*)&info, sizeof(AccountSystem::BotStatusInfo));
+    // actBotStatus->Publish();
 }
 
 static int motor_task_mode_update(int &mode, bool &is_changed)
@@ -590,7 +649,7 @@ static int motor_task_mode_update(int &mode, bool &is_changed)
     if (is_timing && millis() - last_change_time >= 1000) {
         mode = mode_tmp; // 更新模式
         is_changed = true; // 标记状态变化
-        log_e("pitch: %d mode from %d change to %d", mpu_pitch, last_mode, mode);
+        ESP_LOGE(TAG, "pitch: %d mode from %d change to %d", mpu_pitch, last_mode, mode);
         last_mode = mode; // 更新上一次模式
     }
     
@@ -658,7 +717,7 @@ void motor_task(void *pvParameters)
 }
 
 
-static void init_motor(BLDCMotor *motor,BLDCDriver3PWM *driver,GenericSensor *sensor)
+static void init_motor(BLDCMotor *motor, BLDCDriver3PWM *driver, GenericSensor *sensor)
 {
     sensor->init();
     //连接motor对象与传感器对象
@@ -705,58 +764,59 @@ static void init_motor(BLDCMotor *motor,BLDCDriver3PWM *driver,GenericSensor *se
 void motor_initFOC(BLDCMotor *motor, float offset)
 {
     if(offset > 0)  {
-        log_i("has a offset value %.2f.", offset);
+        ESP_LOGI(TAG, "has a offset value %.2f.", offset);
         Direction foc_direction = Direction::CW;
         motor->initFOC(offset, foc_direction);
     } else {
         if(motor->initFOC()) {
-            log_i("motor zero electric angle: %.2f", motor->zero_electric_angle);
+            ESP_LOGI(TAG, "motor zero electric angle: %.2f", motor->zero_electric_angle);
         }
     }
 }
 
 void HAL::motor_init(void)
 {
-
     int ret = 0;
     bool has_set_offset = false;
-    log_i("Motor starting...");
-    pinMode(MT6701_SS_0, OUTPUT);
-    digitalWrite(MT6701_SS_0, HIGH); 
+    Settings settings("motor", true);
+    ESP_LOGI(TAG, "Motor starting...");
+    gpio_set_direction(MT6701_SS_0, GPIO_MODE_OUTPUT);
+    gpio_set_level(MT6701_SS_0, 1);
     for (int i = 0; i < MAX_MOTOR_NUM; i++) {
         memset(&motor_s[i], 0, sizeof(struct motor_stat));
     }
     init_motor(&motor_0, &driver, &sensor_0);
     init_motor(&motor_1, &driver_1, &sensor_1);
     vTaskDelay(100);
-    pinMode(MO_EN, OUTPUT);
-    digitalWrite(MO_EN, HIGH);  
+    gpio_set_direction(MO_EN, GPIO_MODE_OUTPUT);
+    gpio_set_level(MO_EN, 1);
 
-    log_i("[motor]: calibration %s", g_system_calibration?"true":"false");
+    ESP_LOGI(TAG, "[motor]: calibration %s", g_system_calibration?"true":"false");
     if (g_system_calibration == false) {
-        struct motor_offset offset;
-        if(!nvs_get_motor_offset(&offset)) {
-            log_i("[motor]: set offset %f, %f", offset.l_offset, offset.r_offset);
-            motor_initFOC(&motor_0, offset.l_offset);
-            motor_initFOC(&motor_1, offset.r_offset);
+        float l_offset = settings.GetFloat("l_offset", 0);
+        float r_offset = settings.GetFloat("r_offset", 0);
+        if (l_offset != 0 || r_offset != 0) {
+            ESP_LOGI(TAG, "[motor]: set offset %f, %f", l_offset, r_offset);
+            motor_initFOC(&motor_0, l_offset);
+            motor_initFOC(&motor_1, r_offset);
             has_set_offset = true;
         } else {
-            log_i("motor: get config failed, try auto calibration.");
+            ESP_LOGI(TAG, "motor: get config failed, try auto calibration.");
         }
-       
-    } 
+    }
     if (!has_set_offset) {
         motor_initFOC(&motor_0, 0);
         motor_initFOC(&motor_1, 0);
-        nvs_set_motor_config(motor_0.zero_electric_angle, 
-                            motor_1.zero_electric_angle);
+
+        settings.SetFloat("l_offset", motor_0.zero_electric_angle);
+        settings.SetFloat("r_offset", motor_1.zero_electric_angle);
     }
     
-    log_i("Motor ready.");
-    log_i("Set the target velocity using serial terminal:");
+    ESP_LOGI(TAG, "Motor ready.");
+    ESP_LOGI(TAG, "Set the target velocity using serial terminal:");
 
-    actMotorStatus = new Account("MotorStatus", AccountSystem::Broker(), sizeof(MotorStatusInfo), nullptr);
-    actBotStatus = new Account("BotStatus", AccountSystem::Broker(), sizeof(AccountSystem::BotStatusInfo), nullptr);
+    // actMotorStatus = new Account("MotorStatus", AccountSystem::Broker(), sizeof(MotorStatusInfo), nullptr);
+    // actBotStatus = new Account("BotStatus", AccountSystem::Broker(), sizeof(AccountSystem::BotStatusInfo), nullptr);
     ret = xTaskCreatePinnedToCore(
         motor_task,
         "MotorThread",
@@ -766,7 +826,7 @@ void HAL::motor_init(void)
         &handleTaskMotor,
         ESP32_RUNNING_CORE);
     if (ret != pdPASS) {
-        log_e("start motor_run task failed.");
+        ESP_LOGE(TAG, "start motor_run task failed.");
         // return -1;
     }
 }
@@ -780,7 +840,7 @@ double HAL::motor_get_cur_angle(void)
 void HAL::motor_set_speed(float speed, float steering)
 {
     if (g_throttle != speed || g_steering != steering) {
-        // log_e("speed: %d steering %d.", speed, steering);
+        // ESP_LOGE(TAG, "speed: %d steering %d.", speed, steering);
 
         if (speed < -MOTOR_MAX_SPEED) {
             speed = -MOTOR_MAX_SPEED;
@@ -798,7 +858,7 @@ void HAL::motor_set_speed(float speed, float steering)
 
         g_throttle = (float)speed;
         g_steering = (float)-steering;
-        // log_e("throttle: %.2f steering %.2f.", g_throttle, g_steering);
+        // ESP_LOGE(TAG, "throttle: %.2f steering %.2f.", g_throttle, g_steering);
     }
     
 }

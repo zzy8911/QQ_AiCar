@@ -3,6 +3,7 @@
 
 #include <string>
 #include <nvs_flash.h>
+#include "string.h"
 
 class Settings {
 public:
@@ -13,6 +14,8 @@ public:
     void SetString(const std::string& key, const std::string& value);
     int32_t GetInt(const std::string& key, int32_t default_value = 0);
     void SetInt(const std::string& key, int32_t value);
+    float GetFloat(const std::string& key, float default_value=0);
+    void SetFloat(const std::string& key, float value); 
     void EraseKey(const std::string& key);
     void EraseAll();
 

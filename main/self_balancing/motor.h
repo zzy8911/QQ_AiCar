@@ -1,10 +1,16 @@
 #ifndef __MOTOR_H__
 #define __MOTOR_H__
 #include "hal.h"
+#include "esp_log.h"
+#include "boards/self-balancing-robot/config.h"
+#include "driver/spi_master.h"
+#include "settings.h"
 
-#define pi 3.1415926
+// #define pi 3.1415926
 #define init_smooth 1000 // 该值越大，初始化越慢。以防受到干扰。
 #define volt_limit 5.0000
+
+#define XK_INVERT_ROTATION  true
 
 typedef struct {
     bool is_outbound;

@@ -67,6 +67,30 @@ void Settings::SetInt(const std::string& key, int32_t value) {
     }
 }
 
+float Settings::GetFloat(const std::string& key, float default_value) {
+    if (nvs_handle_ == 0) {
+        return default_value;
+    }
+    uint32_t val;
+    if (nvs_get_u32(nvs_handle_, key.c_str(), &val) != ESP_OK) {
+        return default_value;
+    }
+    float f;
+    memcpy(&f, &val, sizeof(float));
+    return f;
+}
+
+void Settings::SetFloat(const std::string& key, float value) {
+    if (read_write_) {
+        uint32_t val;
+        memcpy(&val, &value, sizeof(float));
+        ESP_ERROR_CHECK(nvs_set_u32(nvs_handle_, key.c_str(), val));
+        dirty_ = true;
+    } else {
+        ESP_LOGW(TAG, "Namespace %s is not open for writing", ns_.c_str());
+    }
+}
+
 void Settings::EraseKey(const std::string& key) {
     if (read_write_) {
         auto ret = nvs_erase_key(nvs_handle_, key.c_str());

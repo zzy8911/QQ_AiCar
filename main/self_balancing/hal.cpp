@@ -10,5 +10,5 @@ void HAL::Init()
     ESP_LOGI(TAG, "init mpu...");
     imu_init();
     ESP_LOGI(TAG, "init motor...");
-    // motor_init();
+    motor_init();
 }
