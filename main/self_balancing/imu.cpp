@@ -1,44 +1,51 @@
 #include "hal.h"
 #include "HAL_Def.h"
 #include "mpu6050.h"
+#include "ICM42688.h"
+#include <memory>
 
 #define TAG "HAL_IMU"
 
-static mpu6050_handle_t mpu;
-static complimentary_angle_t angle;
+static std::unique_ptr<ICM42688> imu = nullptr;
 
 TaskHandle_t handleTaskIMU;
 void HAL::imu_update(void *pvParameters)
 {
-    mpu6050_acce_value_t acc;
-    mpu6050_gyro_value_t gyro;
-
     while (1) {
-        mpu6050_get_acce(mpu, &acc);
-        mpu6050_get_gyro(mpu, &gyro);
-        // minus offset
-        gyro.gyro_x -= ((mpu6050_dev_t *)mpu)->gyroXoffset;
-        gyro.gyro_y -= ((mpu6050_dev_t *)mpu)->gyroYoffset;
-        gyro.gyro_z -= ((mpu6050_dev_t *)mpu)->gyroZoffset;
-        mpu6050_complimentory_filter(mpu, &acc, &gyro, &angle);
+        imu->getAGT();
 
-        vTaskDelay(pdMS_TO_TICKS(5));
+        // ESP_LOGI(TAG, "%f\t%f\t%f\t%f\t%f\t%f\t%f",
+        //                 imu->accX(), imu->accY(), imu->accZ(),
+        //                 imu->gyrX(), imu->gyrY(), imu->gyrZ(), imu->temp());
+
+        imu->complementory_filter();
+        // ESP_LOGI(TAG, "%f", imu_get_pitch());
+
+        vTaskDelay(pdMS_TO_TICKS(20));
     }
-
-    // remember to delete the mpu6050 object
-    mpu6050_delete(mpu);
 }
 
 void HAL::imu_init(void)
 {
-    // 创建 MPU6050 对象
-    mpu = mpu6050_create(get_i2c_bus(IMU_BUS), MPU6050_I2C_ADDRESS);
-    mpu6050_config(mpu, ACCE_FS_2G, GYRO_FS_500DPS);
-    mpu6050_wake_up(mpu);
+    imu = std::make_unique<ICM42688>(get_i2c_bus(IMU_BUS), 0x68);
+    int status = imu->begin();
+	if (status < 0) {
+        ESP_LOGE(TAG, "IMU initialization unsuccessful");
+		ESP_LOGE(TAG, "Check IMU wiring or try cycling power");
+		ESP_LOGE(TAG, "Status: %d", status);
+		while (1) {}
+    }
 
-    mpu6050_calc_gyro_offsets(mpu, true, 1000, 3000);
+	// setting the accelerometer full scale range to +/-2G
+	imu->setAccelFS(ICM42688::gpm2);
+	// setting the gyroscope full scale range to +/-500 deg/s
+	imu->setGyroFS(ICM42688::dps500);
 
-    ESP_LOGD(TAG, "imu init pitch offset : %0.2f\n", imu_get_pitch());
+	// set output data rate to 100 Hz
+	imu->setAccelODR(ICM42688::odr100);
+	imu->setGyroODR(ICM42688::odr100);
+
+	// ESP_LOGI(TAG, "ax,ay,az,gx,gy,gz,temp_C");
 
     esp_err_t ret = xTaskCreatePinnedToCore(
         imu_update,
@@ -56,7 +63,7 @@ void HAL::imu_init(void)
 
 float HAL::imu_get_pitch(void)
 {
-    return angle.pitch; /* 0-180  -180 - 0 */
+    return imu->getPitch(); /* 0-180  -180 - 0 */
 }
 
 float HAL::imu_get_yaw(void)

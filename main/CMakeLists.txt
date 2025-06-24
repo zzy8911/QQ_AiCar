@@ -204,9 +204,9 @@ elseif(CONFIG_BOARD_TYPE_JIUCHUAN )
 elseif(CONFIG_BOARD_TYPE_SELF_BALANCING_ROBOT)
     set(BOARD_TYPE "self-balancing-robot")
     list(APPEND SOURCES "self_balancing/hal.cpp"
-                         "self_balancing/mpu6050.c"
-                         "self_balancing/imu.cpp"
-                         "self_balancing/motor.cpp")
+	                "self_balancing/ICM42688.cpp"
+                        "self_balancing/imu.cpp"
+                        "self_balancing/motor.cpp")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc

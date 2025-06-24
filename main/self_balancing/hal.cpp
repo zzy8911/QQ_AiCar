@@ -55,6 +55,6 @@ void HAL::Init()
     init_i2c();
     ESP_LOGI(TAG, "init mpu...");
     imu_init();
-    ESP_LOGI(TAG, "init motor...");
-    motor_init();
+    // ESP_LOGI(TAG, "init motor...");
+    // motor_init();
 }
