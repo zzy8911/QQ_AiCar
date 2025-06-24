@@ -4,6 +4,7 @@
 #include "HAL_Def.h"
 // #include "CommonMacro.h"
 #include <esp_log.h>
+#include "driver/i2c_master.h"
 
 typedef enum {
     SUPER_DIAL_NULL = 0,
@@ -44,6 +45,11 @@ typedef enum
 
 } MOTOR_RUNNING_MODE_E;
 
+typedef enum {
+    IMU_BUS,
+    ENCODER_BUS,
+} I2C_BUS;
+
 #define MOTOR_MAX_SPEED  15
 /** using gyro_z */
 // #define BOT_MAX_STEERING 500 
@@ -70,5 +76,7 @@ namespace HAL
     float imu_get_pitch(void);
     float imu_get_yaw(void);
     float imu_get_gyro_z(void);
+
+    i2c_master_bus_handle_t get_i2c_bus(I2C_BUS num);
 }
 #endif

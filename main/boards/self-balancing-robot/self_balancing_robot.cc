@@ -16,6 +16,7 @@
 #include <esp_lcd_panel_ops.h>
 #include <driver/spi_common.h>
 #include "assets/lang_config.h"
+#include "self_balancing/hal.h"
 
 #if defined(LCD_TYPE_ILI9341_SERIAL)
 #include "esp_lcd_ili9341.h"
@@ -65,7 +66,6 @@ LV_FONT_DECLARE(font_awesome_20_4);
 
 class CompactWifiBoardLCD : public WifiBoard {
 private:
- 
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
@@ -199,7 +199,7 @@ public:
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->RestoreBrightness();
         }
-        
+        HAL::Init();
     }
 
     virtual Led* GetLed() override {

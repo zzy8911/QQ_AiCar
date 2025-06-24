@@ -238,8 +238,8 @@ static void initMySensorCallback(void) {
     // Only once
     spi_bus_config_t buscfg = {
         .mosi_io_num = GPIO_NUM_NC,  // MT6701只需要MISO
-        .miso_io_num = MT6701_SDA,
-        .sclk_io_num = MT6701_SCL,
+        .miso_io_num = ENCODER_SDA,
+        .sclk_io_num = ENCODER_SCL,
         .quadwp_io_num = GPIO_NUM_NC,
         .quadhd_io_num = GPIO_NUM_NC,
         .max_transfer_sz = 0,        // 默认值
@@ -788,8 +788,8 @@ void HAL::motor_init(void)
     init_motor(&motor_0, &driver, &sensor_0);
     init_motor(&motor_1, &driver_1, &sensor_1);
     vTaskDelay(100);
-    gpio_set_direction(MO_EN, GPIO_MODE_OUTPUT);
-    gpio_set_level(MO_EN, 1);
+    // gpio_set_direction(MO_EN, GPIO_MODE_OUTPUT);
+    // gpio_set_level(MO_EN, 1);
 
     ESP_LOGI(TAG, "[motor]: calibration %s", g_system_calibration?"true":"false");
     if (g_system_calibration == false) {

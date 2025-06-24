@@ -64,25 +64,9 @@ static esp_err_t mpu6050_read(mpu6050_handle_t sensor, const uint8_t reg_start_a
     return ret;
 }
 
-mpu6050_handle_t mpu6050_create(i2c_port_t port, const uint16_t dev_addr)
+mpu6050_handle_t mpu6050_create(i2c_master_bus_handle_t i2c_bus, const uint16_t dev_addr)
 {
     mpu6050_dev_t *sensor = (mpu6050_dev_t *) calloc(1, sizeof(mpu6050_dev_t));
-
-    // 配置I2C总线
-    i2c_master_bus_config_t bus_cfg = {
-        .clk_source = I2C_CLK_SRC_DEFAULT,
-        .i2c_port = port,
-        .scl_io_num = MPU6050_SCL,
-        .sda_io_num = MPU6050_SDA,
-        .glitch_ignore_cnt = 7,
-        .flags.enable_internal_pullup = true,
-    };
-    esp_err_t ret = i2c_new_master_bus(&bus_cfg, &sensor->bus);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to create I2C bus: %s", esp_err_to_name(ret));
-        free(sensor);
-        return NULL;
-    }
 
     // 配置设备
     i2c_device_config_t dev_cfg = {
@@ -91,10 +75,10 @@ mpu6050_handle_t mpu6050_create(i2c_port_t port, const uint16_t dev_addr)
         .scl_speed_hz = 400000,
     };
     // 创建设备句柄
-    ret = i2c_master_bus_add_device(sensor->bus, &dev_cfg, &sensor->dev);
+    esp_err_t ret = i2c_master_bus_add_device(i2c_bus, &dev_cfg, &sensor->dev);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to add device: %s", esp_err_to_name(ret));
-        i2c_del_master_bus(sensor->bus);
+        // i2c_del_master_bus(sensor->bus);
         free(sensor);
         return NULL;
     }
@@ -115,9 +99,9 @@ void mpu6050_delete(mpu6050_handle_t sensor)
     if (sens->dev) {
         i2c_master_bus_rm_device(sens->dev);
     }
-    if (sens->bus) {
-        i2c_del_master_bus(sens->bus);
-    }
+    // if (sens->bus) {
+    //     i2c_del_master_bus(sens->bus);
+    // }
     free(sens);
 }
 

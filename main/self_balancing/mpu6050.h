@@ -19,12 +19,11 @@ extern "C" {
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include <string.h>
-#include "boards/self-balancing-robot/config.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
 typedef struct {
-    i2c_master_bus_handle_t bus;
+    // i2c_master_bus_handle_t bus;
     i2c_master_dev_handle_t dev;
     gpio_num_t int_pin;
     uint16_t dev_addr;
@@ -153,7 +152,7 @@ typedef gpio_isr_t mpu6050_isr_t;
  *     - NULL Fail
  *     - Others Success
  */
-mpu6050_handle_t mpu6050_create(i2c_port_t port, const uint16_t dev_addr);
+mpu6050_handle_t mpu6050_create(i2c_master_bus_handle_t i2c_bus, const uint16_t dev_addr);
 
 /**
  * @brief Delete and release a sensor object

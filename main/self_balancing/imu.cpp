@@ -32,7 +32,7 @@ void HAL::imu_update(void *pvParameters)
 void HAL::imu_init(void)
 {
     // 创建 MPU6050 对象
-    mpu = mpu6050_create(I2C_NUM_0, MPU6050_I2C_ADDRESS);
+    mpu = mpu6050_create(get_i2c_bus(IMU_BUS), MPU6050_I2C_ADDRESS);
     mpu6050_config(mpu, ACCE_FS_2G, GYRO_FS_500DPS);
     mpu6050_wake_up(mpu);
 
@@ -47,7 +47,7 @@ void HAL::imu_init(void)
         nullptr,
         2,
         &handleTaskIMU,
-        ESP32_RUNNING_CORE);
+        1);
     if (ret != pdPASS) {
         ESP_LOGE(TAG, "start imu_run task failed.");
         // return -1;
