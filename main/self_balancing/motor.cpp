@@ -23,7 +23,7 @@ static BALANCE_STATUS g_balance_status = BALANCE_OFF;
 LowPassFilter lpf_throttle(0.5);
 LowPassFilter lpf_steering(0.5);
 
-#define MOTOR_MAX_TORQUE 7
+#define MOTOR_MAX_TORQUE 45.0f
 #define BALANCE_WAITTING_TIME  1000
 #define BALANCE_ENABLE_STEERING_I_TIME  3000
 #define BALANCE_STOP_PITCH_OFFSET 40
@@ -32,11 +32,11 @@ LowPassFilter lpf_steering(0.5);
 // 初始值 P0.3 D: 0.02  -- 0.18 0.024
 PIDController pid_stb(0.3, 0, 0.008, 100000, MOTOR_MAX_TORQUE);
 // P = 0.1 I= 0.08
-#define PID_VEL_P (0.3)
-#define PID_VEL_I (0.02)
+#define PID_VEL_P (0.22f)
+#define PID_VEL_I (0.008f)
 #define PID_VEL_D (0.00)
-PIDController pid_vel(PID_VEL_P, PID_VEL_I, PID_VEL_D, 100000, MOTOR_MAX_TORQUE);
-PIDController pid_vel_tmp(PID_VEL_P, PID_VEL_I, PID_VEL_D, 100000, MOTOR_MAX_TORQUE);
+PIDController pid_vel(PID_VEL_P, PID_VEL_I, PID_VEL_D, 1000, MOTOR_MAX_TORQUE);
+PIDController pid_vel_tmp(PID_VEL_P, PID_VEL_I, PID_VEL_D, 1000, MOTOR_MAX_TORQUE);
 PIDController pid_steering(0.01, 0, 0.00, 100000, MOTOR_MAX_TORQUE / 2);
 
 float g_mid_value = -2; // 偏置参数
@@ -276,32 +276,33 @@ static void init_motor(BLDCMotor *motor, BLDCDriver3PWM *driver, GenericSensor *
     //连接motor对象与传感器对象
     motor->linkSensor(sensor);
     // PWM 频率 [Hz]
-    driver->pwm_frequency = 50000;
+    // driver->pwm_frequency = 50000;
     //供电电压设置 [V]
-    driver->voltage_power_supply = 8;
+    driver->voltage_power_supply = 8.4;
     driver->init();
     motor->linkDriver(driver);
     //FOC模型选择
     motor->foc_modulation = FOCModulationType::SpaceVectorPWM;
+    motor->modulation_centered = 1.0;
     //运动控制模式设置
-    motor->torque_controller = TorqueControlType::voltage;
-    motor->controller = MotionControlType::torque;
+    // motor->torque_controller = TorqueControlType::voltage;
+    motor->controller = MotionControlType::velocity;
 
     // 速度PI环设置
-    motor->PID_velocity.P = 1;
-    motor->PID_velocity.I = 0;
-    motor->PID_velocity.D = 0.1;
-
-    motor->PID_velocity.output_ramp = 10000;
-    motor->PID_velocity.limit = MOTOR_MAX_SPEED;
-    //最大电机限制电机
-    motor->voltage_limit = 8;
+    motor->PID_velocity.P = 0.09f;
+    motor->PID_velocity.I = 3;
+    motor->PID_velocity.D = 0;
     //速度低通滤波时间常数
-    motor->LPF_velocity.Tf = 0.01;
-    //设置最大速度限制
-    motor->velocity_limit = MOTOR_MAX_SPEED;
+    motor->LPF_velocity.Tf = 0.02f;
+    motor->PID_velocity.output_ramp = 1000;
+    // motor->PID_velocity.limit = MOTOR_MAX_SPEED; // rad/s
+    //最大电机限制电机
+    motor->voltage_limit = 1;
 
-    motor->monitor_variables = _MON_TARGET | _MON_VEL | _MON_ANGLE;
+    //设置最大速度限制
+    // motor->velocity_limit = MOTOR_MAX_SPEED;
+
+    // motor->monitor_variables = _MON_TARGET | _MON_VEL | _MON_ANGLE;
 
 #ifdef XK_WIRELESS_PARAMETER
     motor->useMonitoring(HAL::get_wl_tuning());
@@ -311,7 +312,7 @@ static void init_motor(BLDCMotor *motor, BLDCDriver3PWM *driver, GenericSensor *
     //初始化电机
     motor->init();
     // motor->initFOC();
-    motor->monitor_downsample = 100;  // disable monitor at first - optional
+    // motor->monitor_downsample = 100;  // disable monitor at first - optional
 }
 
 void motor_initFOC(BLDCMotor *motor, float offset)
