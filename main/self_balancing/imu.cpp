@@ -13,7 +13,6 @@ void HAL::imu_update(void *pvParameters)
 {
     while (1) {
         imu->getAGT();
-
         // ESP_LOGI(TAG, "%f\t%f\t%f\t%f\t%f\t%f\t%f",
         //                 imu->accX(), imu->accY(), imu->accZ(),
         //                 imu->gyrX(), imu->gyrY(), imu->gyrZ(), imu->temp());
@@ -21,13 +20,13 @@ void HAL::imu_update(void *pvParameters)
         imu->complementory_filter();
         // ESP_LOGI(TAG, "%f", imu_get_pitch());
 
-        vTaskDelay(pdMS_TO_TICKS(20));
+        vTaskDelay(pdMS_TO_TICKS(5));
     }
 }
 
 void HAL::imu_init(void)
 {
-    imu = std::make_unique<ICM42688>(get_i2c_bus(IMU_BUS), 0x68);
+    imu = std::make_unique<ICM42688>(HAL::get_i2c_bus(IMU_ENCODER_I2C_BUS), 0x68);
     int status = imu->begin();
 	if (status < 0) {
         ESP_LOGE(TAG, "IMU initialization unsuccessful");
@@ -41,9 +40,9 @@ void HAL::imu_init(void)
 	// setting the gyroscope full scale range to +/-500 deg/s
 	imu->setGyroFS(ICM42688::dps500);
 
-	// set output data rate to 100 Hz
-	imu->setAccelODR(ICM42688::odr100);
-	imu->setGyroODR(ICM42688::odr100);
+	// set output data rate to 200 Hz
+	imu->setAccelODR(ICM42688::odr200);
+	imu->setGyroODR(ICM42688::odr200);
 
 	// ESP_LOGI(TAG, "ax,ay,az,gx,gy,gz,temp_C");
 

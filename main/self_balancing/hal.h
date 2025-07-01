@@ -24,7 +24,6 @@ typedef enum {
 
 enum BOT_RUNNING_MODE {
     BOT_RUNNING_MODE,
-    BOT_RUNNING_XKNOB,
     BOT_RUNNING_BALANCE,
 };
 
@@ -46,8 +45,8 @@ typedef enum
 } MOTOR_RUNNING_MODE_E;
 
 typedef enum {
-    IMU_BUS,
-    ENCODER_BUS,
+    IMU_ENCODER_I2C_BUS,
+    ENCODER_I2C_BUS,
 } I2C_BUS;
 
 #define MOTOR_MAX_SPEED  15

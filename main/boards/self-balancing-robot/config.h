@@ -57,14 +57,12 @@
 #define MO1_3 GPIO_NUM_38
 
 // 霍尔传感器
-#define ENCODER_SDA GPIO_NUM_1
-#define ENCODER_SCL GPIO_NUM_2
-#define MT6701_SS_0 GPIO_NUM_NC
-#define MT6701_SS_1 GPIO_NUM_NC
+#define ENCODER_SDA         GPIO_NUM_1
+#define ENCODER_SCL         GPIO_NUM_2
 
 /* MPU */
-#define IMU_SDA     GPIO_NUM_42
-#define IMU_SCL     GPIO_NUM_41
+#define IMU_ENCODER_SDA     GPIO_NUM_42
+#define IMU_ENCODER_SCL     GPIO_NUM_41
 
 #define CONFIG_SCREEN_HOR_RES       240
 #define CONFIG_SCREEN_VER_RES       240
