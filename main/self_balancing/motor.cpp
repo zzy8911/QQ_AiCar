@@ -240,6 +240,9 @@ void motor_task(void *pvParameters)
 
     while(1) {
         is_task_changed = false;
+
+        HAL::imu_update(); // update IMU data
+
         sensor_0->update();
         motor_0.loopFOC();
         // Serial.printf("angle: %f\n", motor_1.shaft_angle);
@@ -247,7 +250,7 @@ void motor_task(void *pvParameters)
         motor_1.loopFOC();
 
         motor_task_mode_update(motor_task, is_task_changed);
-        
+
         switch(motor_task) {
         case BOT_RUNNING_MODE:
             motor_0.move(0);

@@ -24,6 +24,17 @@ void HAL::imu_update(void *pvParameters)
     }
 }
 
+void HAL::imu_update(void)
+{
+    imu->getAGT();
+    // ESP_LOGI(TAG, "%f\t%f\t%f\t%f\t%f\t%f\t%f",
+    //                 imu->accX(), imu->accY(), imu->accZ(),
+    //                 imu->gyrX(), imu->gyrY(), imu->gyrZ(), imu->temp());
+
+    imu->complementory_filter();
+    // ESP_LOGI(TAG, "%f", imu_get_pitch());
+}
+
 void HAL::imu_init(void)
 {
     imu = std::make_unique<ICM42688>(HAL::get_i2c_bus(IMU_ENCODER_I2C_BUS), 0x68);
@@ -46,18 +57,19 @@ void HAL::imu_init(void)
 
 	// ESP_LOGI(TAG, "ax,ay,az,gx,gy,gz,temp_C");
 
-    esp_err_t ret = xTaskCreatePinnedToCore(
-        imu_update,
-        "IMUThread",
-        4096,
-        nullptr,
-        2,
-        &handleTaskIMU,
-        1);
-    if (ret != pdPASS) {
-        ESP_LOGE(TAG, "start imu_run task failed.");
-        // return -1;
-    }
+    /* Move it to motor task, because as5600 sensor and imu sensor use the same I2C bus. */
+    // esp_err_t ret = xTaskCreatePinnedToCore(
+    //     imu_update,
+    //     "IMUThread",
+    //     4096,
+    //     nullptr,
+    //     2,
+    //     &handleTaskIMU,
+    //     1);
+    // if (ret != pdPASS) {
+    //     ESP_LOGE(TAG, "start imu_run task failed.");
+    //     // return -1;
+    // }
 }
 
 float HAL::imu_get_pitch(void)

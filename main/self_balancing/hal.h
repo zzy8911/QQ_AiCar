@@ -71,6 +71,7 @@ namespace HAL
 
     void  imu_init(void);
     void  imu_update(void *pvParameters);
+    void  imu_update(void);
     float imu_get_abs_yaw(void);
     float imu_get_pitch(void);
     float imu_get_yaw(void);
