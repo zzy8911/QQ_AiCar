@@ -77,3 +77,4 @@ dependencies:
     version: '>=5.4.0'
 
   espressif/esp_simplefoc: '*'
+  h2zero/esp-nimble-cpp: ^2.3.1

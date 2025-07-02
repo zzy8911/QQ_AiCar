@@ -11,4 +11,10 @@
 #define DEFAULTU_BLE_ADDR "34:0a:db:0d:0f:37"
 void controller_init(const char *ble_addr);
 
+enum bot_control_type {
+    BOT_CONTROL_TYPE_AI,
+    BOT_CONTROL_TYPE_JOYSTICKS,
+    BOT_CONTROL_TYPE_MAX,
+};
+
 #endif
