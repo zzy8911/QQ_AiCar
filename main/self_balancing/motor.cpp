@@ -42,8 +42,6 @@ PIDController pid_steering(0.01, 0, 0.00, 100000, MOTOR_MAX_TORQUE / 2);
 float g_mid_value = -2; // 偏置参数
 float g_throttle = 0;
 float g_steering = 0;
-//目标变量
-float target_velocity = 0;
 
 i2c_master_dev_handle_t i2c_device_0 = nullptr; // 左电机编码器
 i2c_master_dev_handle_t i2c_device_1 = nullptr; // 右电机编码器
@@ -193,8 +191,8 @@ static int run_balance_task(BLDCMotor *motor_l, BLDCMotor *motor_r,
     steering_adj = pid_steering(lpf_steering(steering) - 0);
     all_adj = stb_adj + speed_adj;
 
-    motor_l->target = (all_adj + steering_adj);
-    motor_r->target = -(all_adj - steering_adj);
+    motor_l->target = -(all_adj + steering_adj);
+    motor_r->target = (all_adj - steering_adj);
 out:
     motor_l->move();
     motor_r->move();
