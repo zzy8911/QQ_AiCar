@@ -161,6 +161,7 @@ static int run_balance_task(BLDCMotor *motor_l, BLDCMotor *motor_r,
     float all_adj = 0;
 
     float mpu_pitch = HAL::imu_get_pitch();
+    ESP_LOGI(TAG, "mpu_pitch: %.2f, throttle: %.2f, steering: %.2f", mpu_pitch, throttle, steering);
     // float mpu_yaw = HAL::imu_get_yaw();
     // float gyro_z = HAL::imu_get_gyro_z();
     rc = check_balance_status(mpu_pitch);
@@ -239,12 +240,10 @@ void motor_task(void *pvParameters)
     while(1) {
         is_task_changed = false;
 
-        HAL::imu_update(); // update IMU data
-
-        sensor_0->update();
+        // sensor_0->update();
         motor_0.loopFOC();
         // Serial.printf("angle: %f\n", motor_1.shaft_angle);
-        sensor_1->update();
+        // sensor_1->update();
         motor_1.loopFOC();
 
         motor_task_mode_update(motor_task, is_task_changed);

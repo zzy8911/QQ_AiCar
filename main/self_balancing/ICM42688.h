@@ -9,6 +9,7 @@
 #include <sys/time.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "cordic.hpp"
 
 class ICM42688 {
  public:

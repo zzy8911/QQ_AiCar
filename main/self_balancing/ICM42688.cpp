@@ -1051,28 +1051,33 @@ int ICM42688::selfTest() {
 	return 1;
 }
 
+static unsigned long millis()
+{
+    return (unsigned long)(esp_timer_get_time() / 1000ULL);
+}
+
 #define ALPHA                       0.98f        /*!< Weight of gyroscope */
 #define RAD_TO_DEG                  57.29577951f /*!< Radians to degrees: 360 / 2.0 / PI */
 esp_err_t ICM42688::complementory_filter()
 {
 	static bool flag = false;
-	float dt;  /*!< delay time between two measurements, dt should be small (ms level) */
-    static struct timeval timer; // Previous time
-    float acce_angle[2] = {0.0};
-    float gyro_angle[3] = {0.0};
-    // float gyro_rate[2];
+	float interval;  /*!< delay time between two measurements, dt should be small (ms level) */
+	static long preInterval;
+	float acce_angle[2] = {0.0};
+	float gyro_angle[3] = {0.0};
+	// float gyro_rate[2];
 #if 0
-    acce_angle[0] = (atan2(accY(), accZ()) * RAD_TO_DEG);
-    acce_angle[1] = (atan2(accX(), accZ()) * RAD_TO_DEG);
+	acce_angle[0] = (atan2(accY(), accZ()) * RAD_TO_DEG);
+	acce_angle[1] = (atan2(accX(), accZ()) * RAD_TO_DEG);
 
-    if (flag == false) {
+	if (flag == false) {
 		// The first time need to record the time.
-        _angle.pitch = acce_angle[0];
-        _angle.roll = acce_angle[1];
-        gettimeofday(&timer, NULL);
+		_angle.pitch = acce_angle[0];
+		_angle.roll = acce_angle[1];
+		gettimeofday(&timer, NULL);
 
 		flag = true;
-    } else {
+	} else {
 		struct timeval now, dt_t;
 		gettimeofday(&now, NULL);
 		timersub(&now, &timer, &dt_t);
@@ -1086,31 +1091,31 @@ esp_err_t ICM42688::complementory_filter()
 		_angle.roll = (ALPHA * (_angle.roll + gyro_angle[1])) + ((1 - ALPHA) * acce_angle[1]);
 	}
 #else
-	acce_angle[0] = atan2(accY(), accZ() + abs(accX())) * RAD_TO_DEG;
-	acce_angle[1] = atan2(accX(), accZ() + abs(accY())) * -RAD_TO_DEG;
+	acce_angle[0] = atan2(accY(), accZ() + abs(accX())) * RAD_TO_DEG; // 4ms
+	acce_angle[1] = atan2(accX(), accZ() + abs(accY())) * -RAD_TO_DEG;// 4ms
+	// ESP_LOGI(TAG, "acce_angle[0]:%f", acce_angle[0]);
 
-    if (flag == false) {
-        _angle.pitch = acce_angle[0];
-        _angle.roll = acce_angle[1];
-        gettimeofday(&timer, NULL);
+	if (flag == false) {
+		_angle.pitch = acce_angle[0];
+		_angle.roll = acce_angle[1];
+		preInterval = millis();
 
 		flag = true;
-    } else {
-		struct timeval now, dt_t;
-		gettimeofday(&now, NULL);
-		timersub(&now, &timer, &dt_t);
-		dt = (float) (dt_t.tv_sec) + (float)dt_t.tv_usec / 1000000;
-		gettimeofday(&timer, NULL);
+	} else {
+		interval = (millis() - preInterval) / 1000.0f; // 4ms
+		// ESP_LOGI(TAG, "interval:%f", interval);
 
-		gyro_angle[0] += gyrX() * dt;
-		gyro_angle[1] += gyrY() * dt;
-		// gyro_angle[2] += gyrZ() * dt;
+		gyro_angle[0] += gyrX() * interval;
+		gyro_angle[1] += gyrY() * interval;
+		// gyro_angle[2] += gyrZ() * interval;
 
-		_angle.pitch = (ALPHA * (_angle.pitch + gyrX() * dt)) + ((1-ALPHA) * acce_angle[0]);
-		_angle.roll = (ALPHA * (_angle.roll + gyrY() * dt)) + ((1-ALPHA) * acce_angle[1]);
+		_angle.pitch = (ALPHA * (_angle.pitch + gyrX() * interval)) + ((1-ALPHA) * acce_angle[0]);
+		_angle.roll = (ALPHA * (_angle.roll + gyrY() * interval)) + ((1-ALPHA) * acce_angle[1]);
 		// angleZ = angleGyroZ;
-	}
+		// ESP_LOGI(TAG, "pitch:%f", _angle.pitch); // 4ms
 
+		preInterval = millis();
+	}
 #endif
     return ESP_OK;
 }
