@@ -435,7 +435,7 @@ void Application::Start() {
         Application* app = (Application*)arg;
         app->AudioLoop();
         vTaskDelete(NULL);
-    }, "audio_loop", 4096 * 2, this, 8, &audio_loop_task_handle_, 1);
+    }, "audio_loop", 4096 * 2, this, 8, &audio_loop_task_handle_, 0); // AFE: CORE 0
 #else
     xTaskCreate([](void* arg) {
         Application* app = (Application*)arg;

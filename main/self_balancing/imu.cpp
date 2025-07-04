@@ -58,18 +58,18 @@ void HAL::imu_init(void)
 	// ESP_LOGI(TAG, "ax,ay,az,gx,gy,gz,temp_C");
 
     /* Move it to motor task, because as5600 sensor and imu sensor use the same I2C bus. */
-    esp_err_t ret = xTaskCreatePinnedToCore(
-        imu_update,
-        "IMUThread",
-        4096,
-        nullptr,
-        2,
-        &handleTaskIMU,
-        1);
-    if (ret != pdPASS) {
-        ESP_LOGE(TAG, "start imu_run task failed.");
-        // return -1;
-    }
+    // esp_err_t ret = xTaskCreatePinnedToCore(
+    //     imu_update,
+    //     "IMUThread",
+    //     4096,
+    //     nullptr,
+    //     2,
+    //     &handleTaskIMU,
+    //     1);
+    // if (ret != pdPASS) {
+    //     ESP_LOGE(TAG, "start imu_run task failed.");
+    //     // return -1;
+    // }
 }
 
 float HAL::imu_get_pitch(void)

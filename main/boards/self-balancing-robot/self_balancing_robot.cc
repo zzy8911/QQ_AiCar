@@ -125,6 +125,13 @@ private:
 #ifdef  LCD_TYPE_GC9A01_SERIAL
         panel_config.vendor_config = &gc9107_vendor_config;
 #endif
+        lvgl_port_cfg_t port_cfg = {
+            .task_priority = 4,
+            .task_stack = 7168,
+            .task_affinity = 0, // LVGL: CORE 0
+            .task_max_sleep_ms = 500,
+            .timer_period_ms = 5,
+        };
         display_ = new SpiLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                     {
@@ -135,7 +142,7 @@ private:
 #else
                                         .emoji_font = DISPLAY_HEIGHT > 240 ? font_emoji_64_init() : font_emoji_32_init(),
 #endif
-                                    });
+                                    }, port_cfg);
     }
 
 

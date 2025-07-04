@@ -68,8 +68,36 @@
 #define CONFIG_SCREEN_VER_RES       240
 #define CONFIG_SCREEN_BUFFER_SIZE   (CONFIG_SCREEN_HOR_RES * CONFIG_SCREEN_VER_RES /2)
 
-#define LVGL_RUNNING_CORE   0
-#define ESP32_RUNNING_CORE  1
+/*
+ * Core1 (APP_CPU) 任务分配：
+ * ----------------------------------------
+ * 1. SimpleFOC 电机控制任务（PID闭环控制）
+ *    - 定时读取IMU数据
+ *    - 优先级设为最高（10）
+ *    - 核心独占，避免其他任务干扰，保证实时性
+ */
+/*
+ * Core0 (PRO_CPU) 任务分配：
+ * ----------------------------------------
+ * 1. LVGL 图形刷新及 UI 逻辑任务
+ *    - 负责屏幕绘制和界面事件处理
+ *    - 优先级中等（4）
+ *    - 避免抢占电机控制任务，保持界面流畅
+ *
+ * 2. 蓝牙遥控任务（Xbox 蓝牙 HID）
+ *    - 处理蓝牙协议栈和数据交互
+ *    - 优先级中高（6）
+ *    - ESP-IDF蓝牙栈默认绑定core0
+ *
+ * 3. AFE 语音采样与处理任务（如VAD、FFT）
+ *    - 负责麦克风数据采集和语音预处理
+ *    - 优先级较高（8）
+ *    - 可使用环形缓冲区防止阻塞其他任务
+ *
+ * 4. UI事件处理和控制逻辑任务
+ *    - 处理用户输入和控制指令逻辑
+ *    - 优先级较低（如 2~4）
+ */
 
 #define LCD_BK_DEFAULT_BRIGHTNESS  50
 #define LCD_BK_DEFAULT_TIMEOUT     5

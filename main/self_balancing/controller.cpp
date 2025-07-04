@@ -185,7 +185,7 @@ void controller_init(const char *ble_addr)
         "ControllerTask",
         4096,
         NULL,
-        0,
+        6,
         NULL,
-        0);
+        0); // Xbox: CORE 0
 }

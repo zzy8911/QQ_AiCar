@@ -6,6 +6,7 @@
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <font_emoji.h>
+#include <esp_lvgl_port.h>
 
 #include <atomic>
 
@@ -84,6 +85,15 @@ public:
                   int width, int height, int offset_x, int offset_y,
                   bool mirror_x, bool mirror_y, bool swap_xy,
                   DisplayFonts fonts);
+    SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
+                  int width, int height, int offset_x, int offset_y,
+                  bool mirror_x, bool mirror_y, bool swap_xy,
+                  DisplayFonts fonts, lvgl_port_cfg_t& port_cfg);
+private:
+    void InitDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
+                    int width, int height, int offset_x, int offset_y,
+                    bool mirror_x, bool mirror_y, bool swap_xy,
+                    DisplayFonts fonts, lvgl_port_cfg_t& port_cfg);
 };
 
 // QSPI LCD显示器

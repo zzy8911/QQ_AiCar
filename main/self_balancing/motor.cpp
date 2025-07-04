@@ -161,7 +161,7 @@ static int run_balance_task(BLDCMotor *motor_l, BLDCMotor *motor_r,
     float all_adj = 0;
 
     float mpu_pitch = HAL::imu_get_pitch();
-    ESP_LOGI(TAG, "mpu_pitch: %.2f, throttle: %.2f, steering: %.2f", mpu_pitch, throttle, steering);
+    // ESP_LOGI(TAG, "mpu_pitch: %.2f, throttle: %.2f, steering: %.2f", mpu_pitch, throttle, steering);
     // float mpu_yaw = HAL::imu_get_yaw();
     // float gyro_z = HAL::imu_get_gyro_z();
     rc = check_balance_status(mpu_pitch);
@@ -240,6 +240,8 @@ void motor_task(void *pvParameters)
     while(1) {
         is_task_changed = false;
 
+        HAL::imu_update(); // 更新IMU数据
+
         // sensor_0->update();
         motor_0.loopFOC();
         // Serial.printf("angle: %f\n", motor_1.shaft_angle);
@@ -247,7 +249,6 @@ void motor_task(void *pvParameters)
         motor_1.loopFOC();
 
         motor_task_mode_update(motor_task, is_task_changed);
-
         switch(motor_task) {
         case BOT_RUNNING_MODE:
             motor_0.move(0);
@@ -367,9 +368,9 @@ void HAL::motor_init(void)
         "MotorThread",
         4096,
         nullptr,
-        2,
+        10,
         &handleTaskMotor,
-        ESP32_RUNNING_CORE);
+        1); // Motor: CORE 1
     if (ret != pdPASS) {
         ESP_LOGE(TAG, "start motor_run task failed.");
         // return -1;
