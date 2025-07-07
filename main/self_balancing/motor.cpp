@@ -30,7 +30,8 @@ LowPassFilter lpf_steering(0.5);
 // control algorithm parametersw
 // stabilisation pid
 // 初始值 P0.3 D: 0.02  -- 0.18 0.024
-PIDController pid_stb(0.03, 0, 0.002, 100000, MOTOR_MAX_TORQUE); // *0.6
+// PIDController pid_stb(0.03, 0, 0.002, 100000, MOTOR_MAX_TORQUE); // *0.6
+UprightPID pid_stb(0.03, 0, 0.002, MOTOR_MAX_TORQUE);
 // P = 0.1 I= 0.08
 #define PID_VEL_P (-0.042)
 #define PID_VEL_I (-0.001)
@@ -104,14 +105,6 @@ static void init_callback_1(void) {
 }
 std::unique_ptr<GenericSensor> sensor_1 = nullptr;
 
-/* 
- * 将随机变化的值限制在一个给定的区间[min,max]内
-*/ 
-static float CLAMP(const float value, const float low, const float high)
-{
-    return value < low ? low : (value > high ? high : value);
-}
-
 static void motor_reset_all_pid()
 {
     pid_stb.reset();
@@ -172,13 +165,14 @@ static int run_balance_task(BLDCMotor *motor_l, BLDCMotor *motor_r,
     }
 
     speed = (motor_l->shaft_velocity - motor_r->shaft_velocity) / 2;
-    
+
     /* Cascade PID */
     // float voltage_control = pid_stb(Offset_parameters - mpu_pitch + target_pitch);
     // float steering_adj = lpf_steering(steering);
 
     /* Parallel PID */
-    stb_adj = pid_stb(g_mid_value - mpu_pitch);
+    // stb_adj = pid_stb(g_mid_value - mpu_pitch);
+    stb_adj = pid_stb(g_mid_value, mpu_pitch, HAL::lowPassGyroX());
     if (throttle != 0) {
         pid_vel.I = 0;
         ctlr_start_ms = millis();

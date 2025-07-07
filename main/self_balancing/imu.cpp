@@ -77,6 +77,11 @@ float HAL::imu_get_pitch(void)
     return imu->getPitch(); /* 0-180  -180 - 0 */
 }
 
+float HAL::lowPassGyroX(void)
+{
+    return imu->lowPassGyroX();
+}
+
 float HAL::imu_get_yaw(void)
 {
     // FIXME: 需要修改

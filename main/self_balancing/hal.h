@@ -76,6 +76,7 @@ namespace HAL
     float imu_get_pitch(void);
     float imu_get_yaw(void);
     float imu_get_gyro_z(void);
+    float lowPassGyroX(void);
 
     i2c_master_bus_handle_t get_i2c_bus(I2C_BUS num);
 }

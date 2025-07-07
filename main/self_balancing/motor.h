@@ -5,6 +5,7 @@
 #include "boards/self-balancing-robot/config.h"
 #include "driver/spi_master.h"
 #include "settings.h"
+#include "upright_pid.h"
 
 // #define pi 3.1415926
 #define init_smooth 1000 // 该值越大，初始化越慢。以防受到干扰。

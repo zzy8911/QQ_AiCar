@@ -267,6 +267,12 @@ class ICM42688 {
 	float getPitch() { return _angle.pitch; };
 	float getRoll() { return _angle.roll; };
 
+	float lowPassGyroX(float alpha=0.2)
+	{
+		gyroXFV = alpha * _gyr[0] + (1 - alpha) * gyroXFV;
+		return gyroXFV;
+	}
+
  protected:
 	///\brief I2C Communication
 	i2c_master_dev_handle_t   _dev;
@@ -312,6 +318,8 @@ class ICM42688 {
 	float _gyrB[3]   = {};
 
 	struct complementary_angle_t _angle;
+
+	float gyroXFV = 0.0f;  ///< low pass filter for gyro X axis
 
 	///\brief Constants
 	static constexpr uint8_t WHO_AM_I          = 0x47;  ///< expected value in UB0_REG_WHO_AM_I reg
