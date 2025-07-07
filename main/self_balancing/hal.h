@@ -5,6 +5,8 @@
 // #include "CommonMacro.h"
 #include <esp_log.h>
 #include "driver/i2c_master.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 typedef enum {
     SUPER_DIAL_NULL = 0,
@@ -79,5 +81,6 @@ namespace HAL
     float lowPassGyroX(void);
 
     i2c_master_bus_handle_t get_i2c_bus(I2C_BUS num);
+    extern SemaphoreHandle_t i2c_mutex;
 }
 #endif

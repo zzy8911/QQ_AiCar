@@ -7,7 +7,11 @@
 static i2c_master_bus_handle_t imu_encoder_i2c_bus_; // 42, 41, icm42688, as5600
 static i2c_master_bus_handle_t encoder_i2c_bus_; // 1, 2, as5600
 
+SemaphoreHandle_t HAL::i2c_mutex = nullptr;
+
 static void init_i2c() {
+    HAL::i2c_mutex = xSemaphoreCreateMutex();
+
     // Initialize I2C peripheral
     i2c_master_bus_config_t i2c0_bus_cfg = {
         .i2c_port = (i2c_port_t)I2C_NUM_0,

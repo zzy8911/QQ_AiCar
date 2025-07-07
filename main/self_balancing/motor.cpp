@@ -1,4 +1,3 @@
-#include "hal.h"
 #include "motor.h"
 #include <esp_simplefoc.h>
 #include <memory>
@@ -50,14 +49,22 @@ i2c_master_dev_handle_t i2c_device_1 = nullptr; // 右电机编码器
 static float read_data_callback(void) {
     uint8_t raw_angle_buf[2] = {0};
     uint8_t reg = 0x0C; // AS5600 angle register
-    if (ESP_OK == i2c_master_transmit_receive(i2c_device_0, &reg, 1, raw_angle_buf, 2, 100)) {
-        uint16_t raw_angle = (uint16_t)(raw_angle_buf[0] << 8 | raw_angle_buf[1]);
-        float angle = (((int)raw_angle & 0b0000111111111111) * 360.0f / 4096.0f) * (PI / 180.0f);
 
-        // ESP_LOGI(TAG, "AS5600 sensor 0 angle: %f", angle);
-        return angle;
+    if (xSemaphoreTake(HAL::i2c_mutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+        esp_err_t ret = i2c_master_transmit_receive(i2c_device_0, &reg, 1, raw_angle_buf, 2, 100);
+        xSemaphoreGive(HAL::i2c_mutex);
+        if (ESP_OK == ret) {
+            uint16_t raw_angle = (uint16_t)(raw_angle_buf[0] << 8 | raw_angle_buf[1]);
+            float angle = (((int)raw_angle & 0b0000111111111111) / 4096.0f) * (2 * PI);
+
+            // ESP_LOGI(TAG, "AS5600 sensor 0 angle: %f", angle);
+            return angle;
+        } else {
+            ESP_LOGE(TAG, "Failed to read AS5600 sensor 0 angle data");
+            return 0.0f;
+        }
     } else {
-        ESP_LOGE(TAG, "Failed to read AS5600 sensor 0 angle data");
+        ESP_LOGE(TAG, "Failed to take I2C mutex");
         return 0.0f;
     }
 }
@@ -79,14 +86,22 @@ std::unique_ptr<GenericSensor> sensor_0 = nullptr;
 static float read_data_callback_1(void) {
     uint8_t raw_angle_buf[2] = {0};
     uint8_t reg = 0x0C; // AS5600 angle register
-    if (ESP_OK == i2c_master_transmit_receive(i2c_device_1, &reg, 1, raw_angle_buf, 2, 100)) {
-        uint16_t raw_angle = (uint16_t)(raw_angle_buf[0] << 8 | raw_angle_buf[1]);
-        float angle = (((int)raw_angle & 0b0000111111111111) * 360.0f / 4096.0f) * (PI / 180.0f);
 
-        // ESP_LOGI(TAG, "AS5600 sensor 1 angle: %f", angle);
-        return angle;
+    if (xSemaphoreTake(HAL::i2c_mutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+        esp_err_t ret = i2c_master_transmit_receive(i2c_device_1, &reg, 1, raw_angle_buf, 2, 100);
+        xSemaphoreGive(HAL::i2c_mutex);
+        if (ESP_OK == ret) {
+            uint16_t raw_angle = (uint16_t)(raw_angle_buf[0] << 8 | raw_angle_buf[1]);
+            float angle = (((int)raw_angle & 0b0000111111111111) / 4096.0f) * (2 * PI);
+
+            // ESP_LOGI(TAG, "AS5600 sensor 1 angle: %f", angle);
+            return angle;
+        } else {
+            ESP_LOGE(TAG, "Failed to read AS5600 sensor 1 angle data");
+            return 0.0f;
+        }
     } else {
-        ESP_LOGE(TAG, "Failed to read AS5600 sensor 1 angle data");
+        ESP_LOGE(TAG, "Failed to take I2C mutex");
         return 0.0f;
     }
 }
@@ -232,6 +247,7 @@ void motor_task(void *pvParameters)
     int motor_task = BOT_RUNNING_MODE;
     bool is_task_changed = false;
 
+    // Execute every 6 milliseconds
     while(1) {
         is_task_changed = false;
 

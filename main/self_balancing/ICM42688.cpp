@@ -1,5 +1,6 @@
 #include "ICM42688.h"
 #include <cstddef>
+#include "hal.h"
 
 #define TAG "ICM42688"
 
@@ -580,8 +581,16 @@ int ICM42688::writeRegister(uint8_t subAddress, uint8_t data) {
 	uint8_t write_buf[2];
 	write_buf[0] = subAddress;
 	write_buf[1] = data;
-	esp_err_t ret = i2c_master_transmit(_dev, write_buf, 2, 100);
-	if (ret != ESP_OK) {
+
+	if (xSemaphoreTake(HAL::i2c_mutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+		esp_err_t ret = i2c_master_transmit(_dev, write_buf, 2, 100);
+		xSemaphoreGive(HAL::i2c_mutex); // 释放锁
+
+		if (ret != ESP_OK) {
+			return -1;
+		}
+	} else {
+		// 获取锁失败，返回错误
 		return -1;
 	}
 
@@ -599,8 +608,15 @@ int ICM42688::writeRegister(uint8_t subAddress, uint8_t data) {
 
 /* reads registers from ICM42688 given a starting register address, number of bytes, and a pointer to store data */
 int ICM42688::readRegisters(uint8_t subAddress, uint8_t count, uint8_t* dest) {
-	if (ESP_OK == i2c_master_transmit_receive(_dev, &subAddress, 1, dest, count, 100)) {
-		return 1;
+	if (xSemaphoreTake(HAL::i2c_mutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+		esp_err_t ret = i2c_master_transmit_receive(_dev, &subAddress, 1, dest, count, 100);
+		xSemaphoreGive(HAL::i2c_mutex);
+
+		if (ret == ESP_OK) {
+			return 1;
+		} else {
+			return -1;
+		}
 	} else {
 		return -1;
 	}
