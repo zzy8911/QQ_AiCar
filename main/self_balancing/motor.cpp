@@ -30,16 +30,16 @@ LowPassFilter lpf_steering(0.5);
 // control algorithm parametersw
 // stabilisation pid
 // 初始值 P0.3 D: 0.02  -- 0.18 0.024
-PIDController pid_stb(0.3, 0, 0.008, 100000, MOTOR_MAX_TORQUE);
+PIDController pid_stb(0.03, 0, 0.002, 100000, MOTOR_MAX_TORQUE); // *0.6
 // P = 0.1 I= 0.08
-#define PID_VEL_P (0.22f)
-#define PID_VEL_I (0.008f)
-#define PID_VEL_D (0.00)
-PIDController pid_vel(PID_VEL_P, PID_VEL_I, PID_VEL_D, 1000, MOTOR_MAX_TORQUE);
-PIDController pid_vel_tmp(PID_VEL_P, PID_VEL_I, PID_VEL_D, 1000, MOTOR_MAX_TORQUE);
+#define PID_VEL_P (-0.042)
+#define PID_VEL_I (-0.001)
+#define PID_VEL_D (0)
+PIDController pid_vel(PID_VEL_P, PID_VEL_I, PID_VEL_D, 100000, MOTOR_MAX_TORQUE);
+PIDController pid_vel_tmp(PID_VEL_P, PID_VEL_I, PID_VEL_D, 100000, MOTOR_MAX_TORQUE);
 PIDController pid_steering(0.01, 0, 0.00, 100000, MOTOR_MAX_TORQUE / 2);
 
-float g_mid_value = -2; // 偏置参数
+float g_mid_value = 0.0f; // 偏置参数
 float g_throttle = 0;
 float g_steering = 0;
 
@@ -203,6 +203,7 @@ out:
 static int motor_task_mode_update(int &mode, bool &is_changed)
 {
     int mpu_pitch = (int)(HAL::imu_get_pitch());
+    // ESP_LOGI(TAG, "pitch: %d", mpu_pitch);
     static int last_mode = BOT_RUNNING_MODE;
     static unsigned long last_change_time = 0;
     static bool is_timing = false;
@@ -262,7 +263,7 @@ void motor_task(void *pvParameters)
         }
 
         // motor_0.monitor();
-        // motor_0.monitor();
+        // motor_1.monitor();
         // Serial.println(motor_config[id].position);
         vTaskDelay(pdMS_TO_TICKS(5));
     }
@@ -274,28 +275,28 @@ static void init_motor(BLDCMotor *motor, BLDCDriver3PWM *driver, GenericSensor *
     //连接motor对象与传感器对象
     motor->linkSensor(sensor);
     // PWM 频率 [Hz]
-    // driver->pwm_frequency = 50000;
+    driver->pwm_frequency = 20000;
     //供电电压设置 [V]
-    driver->voltage_power_supply = 8.4;
+    driver->voltage_power_supply = 8;
     driver->init();
     motor->linkDriver(driver);
     //FOC模型选择
     motor->foc_modulation = FOCModulationType::SpaceVectorPWM;
-    motor->modulation_centered = 1.0;
+    // motor->modulation_centered = 1.0;
     //运动控制模式设置
-    // motor->torque_controller = TorqueControlType::voltage;
-    motor->controller = MotionControlType::velocity;
+    motor->torque_controller = TorqueControlType::voltage;
+    motor->controller = MotionControlType::torque;
 
     // 速度PI环设置
-    motor->PID_velocity.P = 0.09f;
-    motor->PID_velocity.I = 3;
+    motor->PID_velocity.P = 0;
+    motor->PID_velocity.I = 0;
     motor->PID_velocity.D = 0;
     //速度低通滤波时间常数
     motor->LPF_velocity.Tf = 0.02f;
     motor->PID_velocity.output_ramp = 1000;
     // motor->PID_velocity.limit = MOTOR_MAX_SPEED; // rad/s
     //最大电机限制电机
-    motor->voltage_limit = 1;
+    motor->voltage_limit = 8;
 
     //设置最大速度限制
     // motor->velocity_limit = MOTOR_MAX_SPEED;
