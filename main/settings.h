@@ -20,6 +20,9 @@ public:
     void EraseAll();
 
 private:
+    size_t getBytesLength(const std::string& key);
+    size_t getBytes(const std::string& key, void * buf, size_t maxLen);
+    size_t putBytes(const std::string&, const void* value, size_t len);
     std::string ns_;
     nvs_handle_t nvs_handle_ = 0;
     bool read_write_ = false;

@@ -30,16 +30,16 @@ LowPassFilter lpf_steering(0.5);
 // stabilisation pid
 // 初始值 P0.3 D: 0.02  -- 0.18 0.024
 // PIDController pid_stb(0.03, 0, 0.002, 100000, MOTOR_MAX_TORQUE); // *0.6
-UprightPID pid_stb(0.03, 0, 0.002, MOTOR_MAX_TORQUE);
+UprightPID pid_stb(-0.025, 0, -0.0035, MOTOR_MAX_TORQUE); // -0.04, 0, -0.002, *0.6
 // P = 0.1 I= 0.08
-#define PID_VEL_P (-0.042)
-#define PID_VEL_I (-0.001)
+#define PID_VEL_P (-0.06)
+#define PID_VEL_I (-0.0003)
 #define PID_VEL_D (0)
 PIDController pid_vel(PID_VEL_P, PID_VEL_I, PID_VEL_D, 100000, MOTOR_MAX_TORQUE);
 PIDController pid_vel_tmp(PID_VEL_P, PID_VEL_I, PID_VEL_D, 100000, MOTOR_MAX_TORQUE);
 PIDController pid_steering(0.01, 0, 0.00, 100000, MOTOR_MAX_TORQUE / 2);
 
-float g_mid_value = 0.0f; // 偏置参数
+float g_mid_value = -2.0f; // 偏置参数
 float g_throttle = 0;
 float g_steering = 0;
 
@@ -326,12 +326,13 @@ static void init_motor(BLDCMotor *motor, BLDCDriver3PWM *driver, GenericSensor *
 
 void motor_initFOC(BLDCMotor *motor, float offset)
 {
-    if(offset > 0)  {
+    if (offset > 0) {
         ESP_LOGI(TAG, "has a offset value %.2f.", offset);
         Direction foc_direction = Direction::CW;
-        motor->initFOC(offset, foc_direction);
+        // motor->initFOC(offset, foc_direction);
+        motor->initFOC();
     } else {
-        if(motor->initFOC()) {
+        if (motor->initFOC()) {
             ESP_LOGI(TAG, "motor zero electric angle: %.2f", motor->zero_electric_angle);
         }
     }
@@ -341,7 +342,7 @@ void HAL::motor_init(void)
 {
     int ret = 0;
     bool has_set_offset = false;
-    // Settings settings("motor", true);
+    Settings settings("motor", true);
     ESP_LOGI(TAG, "Motor starting...");
 
     sensor_0 = std::make_unique<GenericSensor>(read_data_callback, init_callback);
@@ -352,8 +353,8 @@ void HAL::motor_init(void)
 
     ESP_LOGI(TAG, "[motor]: calibration %s", g_system_calibration?"true":"false");
     if (g_system_calibration == false) {
-        float l_offset = 0; //settings.GetFloat("l_offset", 0);
-        float r_offset = 0; //settings.GetFloat("r_offset", 0);
+        float l_offset = settings.GetFloat("l_offset", 0);
+        float r_offset = settings.GetFloat("r_offset", 0);
         if (l_offset != 0 || r_offset != 0) {
             ESP_LOGI(TAG, "[motor]: set offset %f, %f", l_offset, r_offset);
             motor_initFOC(&motor_0, l_offset);
@@ -367,8 +368,8 @@ void HAL::motor_init(void)
         motor_initFOC(&motor_0, 0);
         motor_initFOC(&motor_1, 0);
 
-        // settings.SetFloat("l_offset", motor_0.zero_electric_angle);
-        // settings.SetFloat("r_offset", motor_1.zero_electric_angle);
+        settings.SetFloat("l_offset", motor_0.zero_electric_angle);
+        settings.SetFloat("r_offset", motor_1.zero_electric_angle);
     }
     
     ESP_LOGI(TAG, "Motor ready.");
