@@ -86,8 +86,7 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
 
 void SpiLcdDisplay::InitDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                                 int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
-                                DisplayFonts fonts, lvgl_port_cfg_t& port_cfg)
-    : LcdDisplay(panel_io, panel, fonts, width, height) {
+                                DisplayFonts fonts, lvgl_port_cfg_t& port_cfg) {
 
     // draw white
     std::vector<uint16_t> buffer(width_, 0xFFFF);
@@ -148,7 +147,7 @@ void SpiLcdDisplay::InitDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_pane
 SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                              int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
                              DisplayFonts fonts)
-    : LcdDisplay(panel_io, panel, fonts) {
+    : LcdDisplay(panel_io, panel, fonts, width, height) {
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
     port_cfg.task_priority = 1;
     port_cfg.timer_period_ms = 50;
@@ -158,7 +157,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
 SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                              int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
                              DisplayFonts fonts, lvgl_port_cfg_t& port_cfg)
-    : LcdDisplay(panel_io, panel, fonts) {
+    : LcdDisplay(panel_io, panel, fonts, width, height) {
     InitDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, fonts, port_cfg);
 }
 
