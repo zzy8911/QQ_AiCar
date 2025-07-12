@@ -4,7 +4,7 @@
 class UprightPID {
 public:
     UprightPID(float kp, float ki, float kd, float limit)
-        : kp_(kp), ki_(ki), kd_(kd)
+        : P(kp), I(ki), D(kd)
     {
         kpMin_ = -limit;
         kpMax_ = limit;
@@ -19,9 +19,9 @@ public:
     {
         float error = angleX + targetAngleX;
 
-        float pOut = kp_ * error;
-        kiOut_ += ki_ * error;
-        float dOut = kd_ * gyroX;
+        float pOut = P * error;
+        kiOut_ += I * error;
+        float dOut = D * gyroX;
 
         // 限制各部分输出范围
         pOut = std::clamp(pOut, kpMin_, kpMax_);
@@ -39,8 +39,9 @@ public:
         pidOut_ = 0.0f;
     }
 
+    float P, I, D;
+
 private:
-    float kp_, ki_, kd_;
     float kpMin_, kpMax_;
     float kiMin_, kiMax_;
     float kdMin_, kdMax_;

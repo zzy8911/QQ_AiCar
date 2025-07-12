@@ -1,5 +1,4 @@
 #include "motor.h"
-#include <esp_simplefoc.h>
 #include <memory>
 
 #define TAG "Motor"
@@ -39,7 +38,7 @@ PIDController pid_vel(PID_VEL_P, PID_VEL_I, PID_VEL_D, 100000, MOTOR_MAX_TORQUE)
 PIDController pid_vel_tmp(PID_VEL_P, PID_VEL_I, PID_VEL_D, 100000, MOTOR_MAX_TORQUE);
 PIDController pid_steering(0.01, 0, 0.00, 100000, MOTOR_MAX_TORQUE / 2);
 
-float g_mid_value = -2.0f; // 偏置参数
+float g_mid_value = -1.0f; // 偏置参数
 float g_throttle = 0;
 float g_steering = 0;
 
