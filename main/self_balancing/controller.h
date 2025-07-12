@@ -8,7 +8,7 @@
 
 #ifndef __CONTROLLER_H__
 #define __CONTROLLER_H__
-#define DEFAULTU_BLE_ADDR "34:0a:db:0d:0f:37"
+#define DEFAULTU_BLE_ADDR "97:ff:96:cc:36:7f"
 void controller_init(const char *ble_addr);
 
 enum bot_control_type {

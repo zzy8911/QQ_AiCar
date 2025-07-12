@@ -65,6 +65,7 @@ i2c_master_bus_handle_t HAL::get_i2c_bus(I2C_BUS num)
 
 void HAL::Init()
 {
+    controller_init(DEFAULTU_BLE_ADDR);
     init_i2c();
     ESP_LOGI(TAG, "init mpu...");
     imu_init();
