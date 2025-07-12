@@ -7,6 +7,7 @@
 #include <list>
 #include <condition_variable>
 #include <atomic>
+#include "esp_heap_caps.h"
 
 class BackgroundTask {
 public:
@@ -23,6 +24,9 @@ private:
     TaskHandle_t background_task_handle_ = nullptr;
     int active_tasks_ = 0;
     int waiting_for_completion_ = 0;
+
+    StackType_t* background_task_stack_ = nullptr;
+    StaticTask_t background_task_tcb_;
 
     void BackgroundTaskLoop();
 };

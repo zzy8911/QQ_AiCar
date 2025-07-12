@@ -57,18 +57,25 @@ void AfeAudioProcessor::Initialize(AudioCodec* codec) {
 
     afe_iface_ = esp_afe_handle_from_config(afe_config);
     afe_data_ = afe_iface_->create_from_config(afe_config);
-    
-    xTaskCreate([](void* arg) {
+
+    audio_processor_task_stack_ = (StackType_t*) heap_caps_malloc(4096 * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
+    xTaskCreateStatic([](void* arg) {
         auto this_ = (AfeAudioProcessor*)arg;
         this_->AudioProcessorTask();
         vTaskDelete(NULL);
-    }, "audio_communication", 4096, this, 3, NULL);
+    }, "audio_communication", 4096, this, 3, audio_processor_task_stack_, &audio_processor_task_tcb_);
 }
 
 AfeAudioProcessor::~AfeAudioProcessor() {
     if (afe_data_ != nullptr) {
         afe_iface_->destroy(afe_data_);
     }
+
+    if (audio_processor_task_stack_ != nullptr) {
+        heap_caps_free(audio_processor_task_stack_);
+        audio_processor_task_stack_ = nullptr;
+    }
+
     vEventGroupDelete(event_group_);
 }
 

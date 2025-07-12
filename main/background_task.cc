@@ -6,15 +6,42 @@
 #define TAG "BackgroundTask"
 
 BackgroundTask::BackgroundTask(uint32_t stack_size) {
-    xTaskCreate([](void* arg) {
-        BackgroundTask* task = (BackgroundTask*)arg;
-        task->BackgroundTaskLoop();
-    }, "background_task", stack_size, this, 2, &background_task_handle_);
+    // 从 PSRAM 分配任务栈
+    background_task_stack_ = (StackType_t*) heap_caps_malloc(
+        stack_size * sizeof(StackType_t),
+        MALLOC_CAP_SPIRAM
+    );
+    if (!background_task_stack_) {
+        ESP_LOGE("BackgroundTask", "Failed to allocate PSRAM stack");
+        return;
+    }
+
+    background_task_handle_ = xTaskCreateStatic(
+        [](void* arg) {
+            static_cast<BackgroundTask*>(arg)->BackgroundTaskLoop();
+        },
+        "background_task",
+        stack_size,
+        this,
+        2,
+        background_task_stack_,
+        &background_task_tcb_
+    );
+    if (background_task_handle_ == nullptr) {
+        ESP_LOGE("BackgroundTask", "Failed to create task");
+    }
+    if (esp_ptr_external_ram(background_task_stack_)) {
+        ESP_LOGI("BackgroundTask", "Stack is in PSRAM");
+    }
 }
 
 BackgroundTask::~BackgroundTask() {
     if (background_task_handle_ != nullptr) {
         vTaskDelete(background_task_handle_);
+    }
+    if (background_task_stack_) {
+        heap_caps_free(background_task_stack_);
+        background_task_stack_ = nullptr;
     }
 }
 

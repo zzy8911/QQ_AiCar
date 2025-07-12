@@ -27,6 +27,10 @@ AfeWakeWord::~AfeWakeWord() {
         heap_caps_free(wake_word_encode_task_stack_);
     }
 
+    if (audio_detection_task_stack_ != nullptr) {
+        heap_caps_free(audio_detection_task_stack_);
+    }
+
     vEventGroupDelete(event_group_);
 }
 
@@ -70,11 +74,12 @@ void AfeWakeWord::Initialize(AudioCodec* codec) {
     afe_iface_ = esp_afe_handle_from_config(afe_config);
     afe_data_ = afe_iface_->create_from_config(afe_config);
 
-    xTaskCreate([](void* arg) {
+    audio_detection_task_stack_ = (StackType_t*) heap_caps_malloc(4096 * 2 * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
+    xTaskCreateStatic([](void* arg) {
         auto this_ = (AfeWakeWord*)arg;
         this_->AudioDetectionTask();
         vTaskDelete(NULL);
-    }, "audio_detection", 4096, this, 3, nullptr);
+    }, "audio_detection", 4096, this, 3, audio_detection_task_stack_, &audio_detection_task_tcb_);
 }
 
 void AfeWakeWord::OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) {

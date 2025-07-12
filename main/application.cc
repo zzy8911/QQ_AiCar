@@ -98,6 +98,10 @@ Application::~Application() {
         delete background_task_;
     }
     vEventGroupDelete(event_group_);
+    if (audio_loop_task_stack_) {
+        heap_caps_free(audio_loop_task_stack_);
+        audio_loop_task_stack_ = nullptr;
+    }
 }
 
 void Application::CheckNewVersion(Ota& ota) {
@@ -431,11 +435,12 @@ void Application::Start() {
     codec->Start();
 
 #if CONFIG_USE_AUDIO_PROCESSOR
-    xTaskCreatePinnedToCore([](void* arg) {
+    audio_loop_task_stack_ = (StackType_t*) heap_caps_malloc(4096 * 2 * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
+    audio_loop_task_handle_ = xTaskCreateStaticPinnedToCore([](void* arg) {
         Application* app = (Application*)arg;
         app->AudioLoop();
         vTaskDelete(NULL);
-    }, "audio_loop", 4096 * 2, this, 8, &audio_loop_task_handle_, 0); // AFE: CORE 0
+    }, "audio_loop", 4096 * 2, this, 8, audio_loop_task_stack_, &audio_loop_task_tcb_, 0); // AFE: CORE 0
 #else
     xTaskCreate([](void* arg) {
         Application* app = (Application*)arg;

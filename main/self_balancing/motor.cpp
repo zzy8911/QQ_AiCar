@@ -43,6 +43,9 @@ float g_mid_value = -2.0f; // 偏置参数
 float g_throttle = 0;
 float g_steering = 0;
 
+static StackType_t* motor_task_stack_ = nullptr;
+static StaticTask_t motor_task_tcb_;
+
 i2c_master_dev_handle_t i2c_device_0 = nullptr; // 左电机编码器
 i2c_master_dev_handle_t i2c_device_1 = nullptr; // 右电机编码器
 #define AS5600_I2C_ADDR 0x36
@@ -373,17 +376,19 @@ void HAL::motor_init(void)
     }
     
     ESP_LOGI(TAG, "Motor ready.");
-    ESP_LOGI(TAG, "Set the target velocity using serial terminal:");
+    // ESP_LOGI(TAG, "Set the target velocity using serial terminal:");
 
-    ret = xTaskCreatePinnedToCore(
+    motor_task_stack_ = (StackType_t*) heap_caps_malloc(4096 * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
+    handleTaskMotor = xTaskCreateStaticPinnedToCore(
         motor_task,
         "MotorThread",
         4096,
         nullptr,
         10,
-        &handleTaskMotor,
+        motor_task_stack_,
+        &motor_task_tcb_,
         1); // Motor: CORE 1
-    if (ret != pdPASS) {
+    if (handleTaskMotor == nullptr) {
         ESP_LOGE(TAG, "start motor_run task failed.");
         // return -1;
     }

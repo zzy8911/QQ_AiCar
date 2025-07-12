@@ -7,6 +7,7 @@
 #include "driver/i2c_master.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "controller.h"
 
 typedef enum {
     SUPER_DIAL_NULL = 0,

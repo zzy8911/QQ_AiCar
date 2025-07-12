@@ -24,6 +24,8 @@ static ButtonEvent btn_dir_down(5000);
 static ButtonEvent btn_dir_left(5000);
 static ButtonEvent btn_dir_right(5000);
 
+static StackType_t* controller_update_task_stack_ = nullptr;
+static StaticTask_t controller_update_task_tcb_;
 
 static inline bool btn_a_is_push(void)
 {
@@ -180,12 +182,15 @@ void controller_init(const char *ble_addr)
     btn_dir_down.EventAttach(controller_btn_dir_down_handler);
     btn_dir_left.EventAttach(controller_btn_dir_left_handler);
     btn_dir_right.EventAttach(controller_btn_dir_right_handler);
-    xTaskCreatePinnedToCore(
+
+    controller_update_task_stack_ = (StackType_t*) heap_caps_malloc(4096 * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
+    xTaskCreateStaticPinnedToCore(
         controller_update_task,
         "ControllerTask",
         4096,
         NULL,
         6,
-        NULL,
+        controller_update_task_stack_,
+        &controller_update_task_tcb_,
         0); // Xbox: CORE 0
 }

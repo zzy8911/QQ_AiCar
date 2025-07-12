@@ -127,6 +127,9 @@ private:
     OpusResampler reference_resampler_;
     OpusResampler output_resampler_;
 
+    StaticTask_t audio_loop_task_tcb_;
+    StackType_t* audio_loop_task_stack_ = nullptr;
+
     void MainEventLoop();
     void OnAudioInput();
     void OnAudioOutput();
