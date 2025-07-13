@@ -44,6 +44,13 @@ typedef struct
     bool isCharging;
 } Power_Info_t;
 
+enum FilterType {
+    NONE = 0,
+    GYRO_ONLY,
+    KALMAN,
+    COMPLEMENTARY
+};
+
 }
 
 #endif

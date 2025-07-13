@@ -12,13 +12,7 @@ TaskHandle_t handleTaskIMU;
 void HAL::imu_update(void *pvParameters)
 {
     while (1) {
-        imu->getAGT();
-        // ESP_LOGI(TAG, "%f\t%f\t%f\t%f\t%f\t%f\t%f",
-        //                 imu->accX(), imu->accY(), imu->accZ(),
-        //                 imu->gyrX(), imu->gyrY(), imu->gyrZ(), imu->temp());
-
-        imu->complementory_filter();
-        // ESP_LOGI(TAG, "%f", imu_get_pitch());
+        imu_update();
 
         vTaskDelay(pdMS_TO_TICKS(5));
     }
@@ -31,7 +25,7 @@ void HAL::imu_update(void)
     //                 imu->accX(), imu->accY(), imu->accZ(),
     //                 imu->gyrX(), imu->gyrY(), imu->gyrZ(), imu->temp());
 
-    imu->complementory_filter();
+    imu->filter();
     // ESP_LOGI(TAG, "%f", imu_get_pitch());
 }
 
@@ -54,6 +48,8 @@ void HAL::imu_init(void)
 	// set output data rate to 200 Hz
 	imu->setAccelODR(ICM42688::odr200);
 	imu->setGyroODR(ICM42688::odr200);
+
+	imu->setFilter(HAL::KALMAN);
 
 	// ESP_LOGI(TAG, "ax,ay,az,gx,gy,gz,temp_C");
 

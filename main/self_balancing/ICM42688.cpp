@@ -1072,7 +1072,7 @@ static unsigned long millis()
     return (unsigned long)(esp_timer_get_time() / 1000ULL);
 }
 
-#define ALPHA                       0.98f        /*!< Weight of gyroscope */
+#define ALPHA                       0.93f        /*!< Weight of gyroscope */
 #define RAD_TO_DEG                  57.29577951f /*!< Radians to degrees: 360 / 2.0 / PI */
 esp_err_t ICM42688::complementory_filter()
 {
@@ -1133,6 +1133,58 @@ esp_err_t ICM42688::complementory_filter()
 		preInterval = millis();
 	}
 #endif
+    return ESP_OK;
+}
+
+esp_err_t ICM42688::filter()
+{
+	static long timer = 0;
+	float dt;  /*!< delay time between two measurements, dt should be small (ms level) */
+
+	_pitch_acc = atan2(accY(), accZ() + abs(accX())) * RAD_TO_DEG; // 4ms
+
+	if (timer == 0) {
+		_kalman.setAngle(_pitch_acc);
+		_pitch_gyro = _pitch_acc;
+		_pitch_comp = _pitch_acc;
+
+		timer = millis();
+	} else {
+		dt = (millis() - timer) / 1000.0f; // 4ms
+		timer = millis();
+		// ESP_LOGI(TAG, "dt: %f", dt);
+
+		// This fixes the transition problem when the accelerometer angle jumps between -180 and 180 degrees
+		if ((_pitch_acc < -90 && _pitch_kalman > 90) || (_pitch_acc > 90 && _pitch_kalman < -90)) {
+			_kalman.setAngle(_pitch_acc);
+			_pitch_comp = _pitch_acc;
+			_pitch_kalman = _pitch_acc;
+			_pitch_gyro = _pitch_acc;
+		}
+
+		if (_filter_type == HAL::FilterType::COMPLEMENTARY) {
+			// Complementary filter
+			_pitch_comp = ALPHA * (_pitch_comp + gyrX() * dt) + (1 - ALPHA) * _pitch_acc;
+			_angle.pitch = _pitch_comp;
+		} else if (_filter_type == HAL::FilterType::KALMAN) {
+			// Kalman filter
+			_pitch_kalman = _kalman.getAngle(_pitch_acc, gyrX(), dt); // Calculate the angle using a Kalman filter
+			_angle.pitch = _pitch_kalman;
+		} else if (_filter_type == HAL::FilterType::GYRO_ONLY) {
+			// Gyro only
+			_pitch_gyro += gyrX() * dt;
+			_angle.pitch = _pitch_gyro;
+		} else {
+			// NONE
+			_angle.pitch = _pitch_acc;
+		}
+
+		// ESP_LOGI(TAG, "pitch_acc: %f", _pitch_acc);
+		// ESP_LOGI(TAG, "pitch_gyro: %f", _pitch_gyro);
+		// ESP_LOGI(TAG, "pitch_comp: %f", _pitch_comp);
+		// ESP_LOGI(TAG, "pitch_kalman: %f", _pitch_kalman);
+	}
+
     return ESP_OK;
 }
 

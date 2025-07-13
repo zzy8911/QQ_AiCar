@@ -10,6 +10,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "cordic.hpp"
+#include "kalman.h"
+#include "HAL_Def.h"
 
 class ICM42688 {
  public:
@@ -66,7 +68,7 @@ class ICM42688 {
 		third_order  = 0x02,
 	};
 
-	struct complementary_angle_t {
+	struct filter_t {
 		float roll;
 		float pitch;
 	};
@@ -261,8 +263,10 @@ class ICM42688 {
 	void  setAccelCalX(float bias, float scaleFactor);
 	void  setAccelCalY(float bias, float scaleFactor);
 	void  setAccelCalZ(float bias, float scaleFactor);
+	void  setFilter(HAL::FilterType filter_type) { _filter_type = filter_type; };
 
 	esp_err_t complementory_filter();
+	esp_err_t filter();
 
 	float getPitch() { return _angle.pitch; };
 	float getRoll() { return _angle.roll; };
@@ -317,7 +321,13 @@ class ICM42688 {
 	float _gyroBD[3] = {};
 	float _gyrB[3]   = {};
 
-	struct complementary_angle_t _angle;
+	struct filter_t _angle = {0.0f, 0.0f};  ///< angle from filter
+	HAL::FilterType _filter_type = HAL::FilterType::NONE;  ///< filter type
+	Kalman _kalman;  ///< Kalman filter for angle estimation
+	float _pitch_kalman = 0.0f;  ///< angle from Kalman filter
+	float _pitch_comp = 0.0f;  ///< angle from complementary filter
+	float _pitch_gyro = 0.0f;  ///< angle from gyro integration
+	float _pitch_acc = 0.0f;  ///< angle from accelerometer
 
 	float gyroXFV = 0.0f;  ///< low pass filter for gyro X axis
 
