@@ -318,6 +318,7 @@ static void init_motor(BLDCMotor *motor, BLDCDriver3PWM *driver, GenericSensor *
 #ifdef XK_WIRELESS_PARAMETER
     motor->useMonitoring(HAL::get_wl_tuning());
 #else
+    // Serial.begin(115200);
     // motor->useMonitoring(Serial);
 #endif
     //初始化电机
@@ -331,8 +332,7 @@ void motor_initFOC(BLDCMotor *motor, float offset)
     if (offset > 0) {
         ESP_LOGI(TAG, "has a offset value %.2f.", offset);
         Direction foc_direction = Direction::CW;
-        // motor->initFOC(offset, foc_direction);
-        motor->initFOC();
+        motor->initFOC(offset, foc_direction);
     } else {
         if (motor->initFOC()) {
             ESP_LOGI(TAG, "motor zero electric angle: %.2f", motor->zero_electric_angle);
