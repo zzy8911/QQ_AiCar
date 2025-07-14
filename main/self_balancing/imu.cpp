@@ -73,9 +73,14 @@ float HAL::imu_get_pitch(void)
     return imu->getPitch(); /* 0-180  -180 - 0 */
 }
 
-float HAL::lowPassGyroX(void)
+float HAL::lowPassGyroX(float alpha)
 {
-    return imu->lowPassGyroX();
+    return imu->lowPassGyroX(alpha);
+}
+
+float HAL::lowPassGyroZ(float alpha)
+{
+    return imu->lowPassGyroZ(alpha);
 }
 
 float HAL::imu_get_yaw(void)

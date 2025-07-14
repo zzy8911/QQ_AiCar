@@ -68,6 +68,12 @@ class ICM42688 {
 		third_order  = 0x02,
 	};
 
+	enum GyroAxis {
+		X = 0,
+		Y = 1,
+		Z = 2
+	};
+
 	struct filter_t {
 		float roll;
 		float pitch;
@@ -161,22 +167,22 @@ class ICM42688 {
      *
      * @return     Acceleration in g's
      */
-	float accX() const { return _acc[0]; }
+	float accX() const { return _acc[X]; }
 
-	float accY() const { return _acc[1]; }
+	float accY() const { return _acc[Y]; }
 
-	float accZ() const { return _acc[2]; }
+	float accZ() const { return _acc[Z]; }
 
 	/**
      * @brief      Get gyro data, per axis
      *
      * @return     Angular velocity in dps
      */
-	float gyrX() const { return _gyr[0]; }
+	float gyrX() const { return _gyr[X]; }
 
-	float gyrY() const { return _gyr[1]; }
+	float gyrY() const { return _gyr[Y]; }
 
-	float gyrZ() const { return _gyr[2]; }
+	float gyrZ() const { return _gyr[Z]; }
 
 	/**
      * @brief      Get temperature of gyro die
@@ -190,22 +196,22 @@ class ICM42688 {
      *
      * @return     Acceleration in bytes
      */
-	int16_t rawAccX() const { return _rawAcc[0]; }
+	int16_t rawAccX() const { return _rawAcc[X]; }
 
-	int16_t rawAccY() const { return _rawAcc[1]; }
+	int16_t rawAccY() const { return _rawAcc[Y]; }
 
-	int16_t rawAccZ() const { return _rawAcc[2]; }
+	int16_t rawAccZ() const { return _rawAcc[Z]; }
 
 	/**
      * @brief      Get gyro raw data, per axis
      *
      * @return     Angular velocity in bytes
      */
-	int16_t rawGyrX() const { return _rawGyr[0]; }
+	int16_t rawGyrX() const { return _rawGyr[X]; }
 
-	int16_t rawGyrY() const { return _rawGyr[1]; }
+	int16_t rawGyrY() const { return _rawGyr[Y]; }
 
-	int16_t rawGyrZ() const { return _rawGyr[2]; }
+	int16_t rawGyrZ() const { return _rawGyr[Z]; }
 
 	/**
      * @brief      Get raw temperature of gyro die
@@ -219,17 +225,17 @@ class ICM42688 {
      *
      * @return     Temperature in bytes
      */
-	int32_t rawBiasAccX() const { return _rawAccBias[0]; }
+	int32_t rawBiasAccX() const { return _rawAccBias[X]; }
 
-	int32_t rawBiasAccY() const { return _rawAccBias[1]; }
+	int32_t rawBiasAccY() const { return _rawAccBias[Y]; }
 
-	int32_t rawBiasAccZ() const { return _rawAccBias[2]; }
+	int32_t rawBiasAccZ() const { return _rawAccBias[Z]; }
 
-	int32_t rawBiasGyrX() const { return _rawGyrBias[0]; }
+	int32_t rawBiasGyrX() const { return _rawGyrBias[X]; }
 
-	int32_t rawBiasGyrY() const { return _rawGyrBias[1]; }
+	int32_t rawBiasGyrY() const { return _rawGyrBias[Y]; }
 
-	int32_t rawBiasGyrZ() const { return _rawGyrBias[2]; }
+	int32_t rawBiasGyrZ() const { return _rawGyrBias[Z]; }
 
 	int   computeOffsets();
 	int   setAllOffsets();                    //Set all Offsets computed
@@ -271,10 +277,16 @@ class ICM42688 {
 	float getPitch() { return _angle.pitch; };
 	float getRoll() { return _angle.roll; };
 
-	float lowPassGyroX(float alpha=0.2)
+	float lowPassGyroX(float alpha)
 	{
-		gyroXFV = alpha * _gyr[0] + (1 - alpha) * gyroXFV;
+		gyroXFV = alpha * _gyr[X] + (1 - alpha) * gyroXFV;
 		return gyroXFV;
+	}
+
+	float lowPassGyroZ(float alpha)
+	{
+		gyroZFV = alpha * _gyr[Z] + (1 - alpha) * gyroZFV;
+		return gyroZFV;
 	}
 
  protected:
@@ -330,6 +342,7 @@ class ICM42688 {
 	float _pitch_acc = 0.0f;  ///< angle from accelerometer
 
 	float gyroXFV = 0.0f;  ///< low pass filter for gyro X axis
+	float gyroZFV = 0.0f;  ///< low pass filter for gyro Z axis
 
 	///\brief Constants
 	static constexpr uint8_t WHO_AM_I          = 0x47;  ///< expected value in UB0_REG_WHO_AM_I reg

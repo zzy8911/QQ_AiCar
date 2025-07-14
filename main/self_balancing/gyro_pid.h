@@ -1,9 +1,9 @@
 #pragma once
 #include <algorithm>
 
-class UprightPID {
+class GyroPID {
 public:
-    UprightPID(float kp, float ki, float kd, float limit)
+    GyroPID(float kp, float ki, float kd, float limit)
         : P(kp), I(ki), D(kd)
     {
         kpMin_ = -limit;
@@ -15,13 +15,13 @@ public:
         outMin_ = -limit;
         outMax_ = limit;
     }
-    float operator()(float targetAngleX, float angleX, float gyroX)
+    float operator()(float target, float feedback, float gyro)
     {
-        float error = angleX + targetAngleX;
+        float error = target - feedback;
 
         float pOut = P * error;
         kiOut_ += I * error;
-        float dOut = D * gyroX;
+        float dOut = D * gyro;
 
         // 限制各部分输出范围
         pOut = std::clamp(pOut, kpMin_, kpMax_);

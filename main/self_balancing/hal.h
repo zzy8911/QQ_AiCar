@@ -79,7 +79,8 @@ namespace HAL
     float imu_get_pitch(void);
     float imu_get_yaw(void);
     float imu_get_gyro_z(void);
-    float lowPassGyroX(void);
+    float lowPassGyroX(float alpha=0.2);
+    float lowPassGyroZ(float alpha=0.2);
 
     i2c_master_bus_handle_t get_i2c_bus(I2C_BUS num);
     extern SemaphoreHandle_t i2c_mutex;

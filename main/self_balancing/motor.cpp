@@ -29,14 +29,14 @@ LowPassFilter lpf_steering(0.5);
 // stabilisation pid
 // 初始值 P0.3 D: 0.02  -- 0.18 0.024
 // PIDController pid_stb(0.03, 0, 0.002, 100000, MOTOR_MAX_TORQUE); // *0.6
-UprightPID pid_stb(-0.025, 0, -0.0035, MOTOR_MAX_TORQUE); // -0.04, 0, -0.002, *0.6
+GyroPID pid_stb(-0.025, 0, -0.0035, MOTOR_MAX_TORQUE); // -0.04, 0, -0.002, *0.6
 // P = 0.1 I= 0.08
 #define PID_VEL_P (-0.06)
 #define PID_VEL_I (-0.0003)
 #define PID_VEL_D (0)
 PIDController pid_vel(PID_VEL_P, PID_VEL_I, PID_VEL_D, 100000, MOTOR_MAX_TORQUE);
 PIDController pid_vel_tmp(PID_VEL_P, PID_VEL_I, PID_VEL_D, 100000, MOTOR_MAX_TORQUE);
-PIDController pid_steering(0.01, 0, 0.00, 100000, MOTOR_MAX_TORQUE / 2);
+GyroPID pid_steering(0.01, 0, 0.00, MOTOR_MAX_TORQUE / 2);
 
 float g_mid_value = -1.0f; // 偏置参数
 float g_throttle = 0;
@@ -200,7 +200,7 @@ static int run_balance_task(BLDCMotor *motor_l, BLDCMotor *motor_r,
     }
 
     speed_adj = pid_vel(speed - lpf_throttle(throttle));
-    steering_adj = pid_steering(lpf_steering(steering) - 0);
+    steering_adj = pid_steering(lpf_steering(steering), 0.0f, HAL::lowPassGyroZ());
     all_adj = stb_adj + speed_adj;
 
     motor_l->target = -(all_adj + steering_adj);
@@ -342,7 +342,6 @@ void motor_initFOC(BLDCMotor *motor, float offset)
 
 void HAL::motor_init(void)
 {
-    int ret = 0;
     bool has_set_offset = false;
     Settings settings("motor", true);
     ESP_LOGI(TAG, "Motor starting...");
