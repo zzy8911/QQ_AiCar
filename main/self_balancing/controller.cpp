@@ -10,6 +10,7 @@
 #include "controller.h"
 #include "XboxController/XboxSeriesXControllerESP32_asukiaaa.hpp"
 #include "button/button_event.h"
+#include "motor.h"
 
 XboxSeriesXControllerESP32_asukiaaa::Core* xboxController = nullptr;
 
@@ -65,43 +66,57 @@ static void controller_btn_a_handler(ButtonEvent* btn, int event)
             g_bot_ctrl_type = BOT_CONTROL_TYPE_AI;
         }
         ESP_LOGI(TAG, "channge to %d control type", g_bot_ctrl_type);
+
+        g_mid_value += 0.5f;
+        ESP_LOGI(TAG, "g_mid_value: %f", g_mid_value);
     }
 }
 
 static void controller_btn_b_handler(ButtonEvent* btn, int event)
 {
     // DBot &dbot = DBot::getInstance();
-    // if (event == ButtonEvent::EVENT_PRESSED) {
-    //     g_bot_ctrl_type = BOT_CONTROL_TYPE_AI;
-    //     dbot.spin(90);
-    // }
+    if (event == ButtonEvent::EVENT_PRESSED) {
+        // g_bot_ctrl_type = BOT_CONTROL_TYPE_AI;
+        // dbot.spin(90);
+
+        g_mid_value -= 0.5f; // 调整偏置参数
+        ESP_LOGI(TAG, "g_mid_value: %f", g_mid_value);
+    }
 }
 
 static void controller_btn_dir_up_handler(ButtonEvent* btn, int event)
 {
     if (event == ButtonEvent::EVENT_PRESSED) {
-        
+        pid_vel.P += 0.1;
+        pid_vel.I += 0.0005;
+        ESP_LOGI(TAG, "pid_vel.P: %f", pid_vel.P);
     }
 }
 
 static void controller_btn_dir_down_handler(ButtonEvent* btn, int event)
 {
     if (event == ButtonEvent::EVENT_PRESSED) {
-    }
-}
-
-static void controller_btn_dir_right_handler(ButtonEvent* btn, int event)
-{
-    if (event == ButtonEvent::EVENT_PRESSED) {
+        pid_vel.P -= 0.1;
+        pid_vel.I -= 0.0005;
+        ESP_LOGI(TAG, "pid_vel.P: %f", pid_vel.P);
     }
 }
 
 static void controller_btn_dir_left_handler(ButtonEvent* btn, int event)
 {
     if (event == ButtonEvent::EVENT_PRESSED) {
+        pid_stb.D += 0.0001;
+        ESP_LOGI(TAG, "pid_stb.D: %f", pid_stb.D);
     }
 }
 
+static void controller_btn_dir_right_handler(ButtonEvent* btn, int event)
+{
+    if (event == ButtonEvent::EVENT_PRESSED) {
+        pid_stb.D -= 0.0001;
+        ESP_LOGI(TAG, "pid_stb.D: %f", pid_stb.D);
+    }
+}
 
 static long _map(long x, long in_min, long in_max, long out_min, long out_max) {
     const long run = in_max - in_min;
@@ -155,7 +170,7 @@ void controller_update_task(void *parameter)
                 btn_dir_left.EventMonitor(btn_dir_left_is_push());
                 btn_dir_right.EventMonitor(btn_dir_right_is_push());
 
-                controller_set_motor_status();
+                // controller_set_motor_status();
             }
         } else {
             // Serial.println("not connected");

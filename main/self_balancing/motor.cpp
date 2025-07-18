@@ -29,10 +29,9 @@ LowPassFilter lpf_steering(0.5);
 // stabilisation pid
 // 初始值 P0.3 D: 0.02  -- 0.18 0.024
 // PIDController pid_stb(0.03, 0, 0.002, 100000, MOTOR_MAX_TORQUE); // *0.6
-GyroPID pid_stb(-0.025, 0, -0.0035, MOTOR_MAX_TORQUE); // -0.04, 0, -0.002, *0.6
-// P = 0.1 I= 0.08
-#define PID_VEL_P (-0.06)
-#define PID_VEL_I (-0.0003)
+GyroPID pid_stb(0.013, 0, -0.0009, MOTOR_MAX_TORQUE); // -0.04, 0, -0.002, *0.6
+#define PID_VEL_P (1.22)
+#define PID_VEL_I (0.006)
 #define PID_VEL_D (0)
 PIDController pid_vel(PID_VEL_P, PID_VEL_I, PID_VEL_D, 100000, MOTOR_MAX_TORQUE);
 PIDController pid_vel_tmp(PID_VEL_P, PID_VEL_I, PID_VEL_D, 100000, MOTOR_MAX_TORQUE);
@@ -181,13 +180,22 @@ static int run_balance_task(BLDCMotor *motor_l, BLDCMotor *motor_r,
         goto out;
     }
 
-    speed = (motor_l->shaft_velocity - motor_r->shaft_velocity) / 2;
-
+    // When rotating in the same direction, one has a positive sign and the other negative, so the speeds are subtracted.
+    speed = (motor_l->shaft_velocity - motor_r->shaft_velocity) / 2.0f;
+#if 1
     /* Cascade PID */
-    // float voltage_control = pid_stb(Offset_parameters - mpu_pitch + target_pitch);
-    // float steering_adj = lpf_steering(steering);
-
+    speed_adj = pid_vel(lpf_throttle(throttle) - speed); // speed_adj is the target angle (in degrees).
+    // ESP_LOGI(TAG, "speed: %.2f, speed_adj: %.2f", speed, speed_adj);
+    speed_adj += g_mid_value; // add mid value offset
+    all_adj = pid_stb(speed_adj, mpu_pitch, HAL::lowPassGyroX());
+#else
     /* Parallel PID */
+    /*
+     * 角速度环:
+     * MPU_Get_Gyroscope(&gyrox,&gyroy,&gyroz);
+     * wPIDOutput = PID_W(&wPID, gyroy);
+     * Set_Pwm(wPIDOutput, wPIDOutput);
+     */
     // stb_adj = pid_stb(g_mid_value - mpu_pitch);
     stb_adj = pid_stb(g_mid_value, mpu_pitch, HAL::lowPassGyroX());
     if (throttle != 0) {
@@ -199,9 +207,12 @@ static int run_balance_task(BLDCMotor *motor_l, BLDCMotor *motor_r,
         }
     }
 
-    speed_adj = pid_vel(speed - lpf_throttle(throttle));
-    steering_adj = pid_steering(lpf_steering(steering), 0.0f, HAL::lowPassGyroZ());
+    speed_adj = pid_vel(lpf_throttle(throttle) - speed);
     all_adj = stb_adj + speed_adj;
+#endif
+
+    // steering
+    steering_adj = pid_steering(lpf_steering(steering), 0.0f, HAL::lowPassGyroZ());
 
     motor_l->target = -(all_adj + steering_adj);
     motor_r->target = (all_adj - steering_adj);
@@ -318,8 +329,8 @@ static void init_motor(BLDCMotor *motor, BLDCDriver3PWM *driver, GenericSensor *
 #ifdef XK_WIRELESS_PARAMETER
     motor->useMonitoring(HAL::get_wl_tuning());
 #else
-    // Serial.begin(115200);
-    // motor->useMonitoring(Serial);
+    Serial.begin(115200);
+    motor->useMonitoring(Serial);
 #endif
     //初始化电机
     motor->init();
@@ -369,8 +380,8 @@ void HAL::motor_init(void)
         motor_initFOC(&motor_0, 0);
         motor_initFOC(&motor_1, 0);
 
-        settings.SetFloat("l_offset", motor_0.zero_electric_angle);
-        settings.SetFloat("r_offset", motor_1.zero_electric_angle);
+        settings.SetFloat("l_offset", motor_0.zero_electric_angle); // 0.9157872
+        settings.SetFloat("r_offset", motor_1.zero_electric_angle); // 0.6583844
     }
     
     ESP_LOGI(TAG, "Motor ready.");
