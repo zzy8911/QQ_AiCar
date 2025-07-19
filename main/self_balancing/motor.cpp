@@ -29,13 +29,13 @@ LowPassFilter lpf_steering(0.5);
 // stabilisation pid
 // 初始值 P0.3 D: 0.02  -- 0.18 0.024
 // PIDController pid_stb(0.03, 0, 0.002, 100000, MOTOR_MAX_TORQUE); // *0.6
-GyroPID pid_stb(0.013, 0, -0.0009, MOTOR_MAX_TORQUE); // -0.04, 0, -0.002, *0.6
-#define PID_VEL_P (1.22)
-#define PID_VEL_I (0.006)
+GyroPID pid_stb(0.01572, 0, -0.0050, MOTOR_MAX_TORQUE); // 0.018, 0, -0.009, *0.6
+#define PID_VEL_P (0.061)
+#define PID_VEL_I (0.0061)// 0.005
 #define PID_VEL_D (0)
 PIDController pid_vel(PID_VEL_P, PID_VEL_I, PID_VEL_D, 100000, MOTOR_MAX_TORQUE);
 PIDController pid_vel_tmp(PID_VEL_P, PID_VEL_I, PID_VEL_D, 100000, MOTOR_MAX_TORQUE);
-GyroPID pid_steering(0.01, 0, 0.00, MOTOR_MAX_TORQUE / 2);
+GyroPID pid_steering(0.01, 0, 0.001, MOTOR_MAX_TORQUE / 2);
 
 float g_mid_value = -1.0f; // 偏置参数
 float g_throttle = 0;
@@ -164,10 +164,11 @@ static int run_balance_task(BLDCMotor *motor_l, BLDCMotor *motor_r,
     static unsigned long ctlr_start_ms = 0; 
     int rc = 0;
     float speed = 0;
-    float speed_adj  = 0;
+    static float speed_adj  = 0;
     float stb_adj = 0;
-    float steering_adj = 0;
+    static float steering_adj = 0;
     float all_adj = 0;
+    static size_t count = 0;
 
     float mpu_pitch = HAL::imu_get_pitch();
     // ESP_LOGI(TAG, "mpu_pitch: %.2f, throttle: %.2f, steering: %.2f", mpu_pitch, throttle, steering);
@@ -182,7 +183,7 @@ static int run_balance_task(BLDCMotor *motor_l, BLDCMotor *motor_r,
 
     // When rotating in the same direction, one has a positive sign and the other negative, so the speeds are subtracted.
     speed = (motor_l->shaft_velocity - motor_r->shaft_velocity) / 2.0f;
-#if 1
+#if 0
     /* Cascade PID */
     speed_adj = pid_vel(lpf_throttle(throttle) - speed); // speed_adj is the target angle (in degrees).
     // ESP_LOGI(TAG, "speed: %.2f, speed_adj: %.2f", speed, speed_adj);
@@ -198,24 +199,30 @@ static int run_balance_task(BLDCMotor *motor_l, BLDCMotor *motor_r,
      */
     // stb_adj = pid_stb(g_mid_value - mpu_pitch);
     stb_adj = pid_stb(g_mid_value, mpu_pitch, HAL::lowPassGyroX());
-    if (throttle != 0) {
-        pid_vel.I = 0;
-        ctlr_start_ms = millis();
-    } else {
-        if (millis() > ctlr_start_ms + BALANCE_ENABLE_STEERING_I_TIME) {
-            pid_vel.I = pid_vel_tmp.I;
+
+    if (count % 4 == 0) {
+        // speed
+        if (throttle != 0) {
+            pid_vel.I = 0;
+            ctlr_start_ms = millis();
+        } else {
+            if (millis() > ctlr_start_ms + BALANCE_ENABLE_STEERING_I_TIME) {
+                // pid_vel.I = pid_vel_tmp.I;
+            }
         }
+        speed_adj = pid_vel(lpf_throttle(throttle) - speed);
+
+        // steering
+        steering_adj = pid_steering(lpf_steering(steering), 0.0f, HAL::lowPassGyroZ());
     }
 
-    speed_adj = pid_vel(lpf_throttle(throttle) - speed);
     all_adj = stb_adj + speed_adj;
 #endif
 
-    // steering
-    steering_adj = pid_steering(lpf_steering(steering), 0.0f, HAL::lowPassGyroZ());
-
     motor_l->target = -(all_adj + steering_adj);
     motor_r->target = (all_adj - steering_adj);
+
+    count++;
 out:
     motor_l->move();
     motor_r->move();
@@ -288,7 +295,7 @@ void motor_task(void *pvParameters)
         // motor_0.monitor();
         // motor_1.monitor();
         // Serial.println(motor_config[id].position);
-        vTaskDelay(pdMS_TO_TICKS(5));
+        // vTaskDelay(pdMS_TO_TICKS(5));
     }
 }
 
@@ -329,8 +336,8 @@ static void init_motor(BLDCMotor *motor, BLDCDriver3PWM *driver, GenericSensor *
 #ifdef XK_WIRELESS_PARAMETER
     motor->useMonitoring(HAL::get_wl_tuning());
 #else
-    Serial.begin(115200);
-    motor->useMonitoring(Serial);
+    // Serial.begin(115200);
+    // motor->useMonitoring(Serial);
 #endif
     //初始化电机
     motor->init();

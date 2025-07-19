@@ -15,5 +15,6 @@
 extern GyroPID pid_stb;
 extern PIDController pid_vel;
 extern float g_mid_value;
+extern GyroPID pid_steering;
 
 #endif // 

@@ -45,9 +45,9 @@ void HAL::imu_init(void)
 	// setting the gyroscope full scale range to +/-500 deg/s
 	imu->setGyroFS(ICM42688::dps500);
 
-	// set output data rate to 200 Hz
-	imu->setAccelODR(ICM42688::odr200);
-	imu->setGyroODR(ICM42688::odr200);
+	// set output data rate to 1k Hz
+	imu->setAccelODR(ICM42688::odr1k);
+	imu->setGyroODR(ICM42688::odr1k);
 
 	imu->setFilter(HAL::KALMAN);
 

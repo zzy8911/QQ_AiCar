@@ -87,8 +87,8 @@ static void controller_btn_b_handler(ButtonEvent* btn, int event)
 static void controller_btn_dir_up_handler(ButtonEvent* btn, int event)
 {
     if (event == ButtonEvent::EVENT_PRESSED) {
-        pid_vel.P += 0.1;
-        pid_vel.I += 0.0005;
+        pid_vel.P += 0.001;
+        pid_vel.I += 0.0001;
         ESP_LOGI(TAG, "pid_vel.P: %f", pid_vel.P);
     }
 }
@@ -96,8 +96,8 @@ static void controller_btn_dir_up_handler(ButtonEvent* btn, int event)
 static void controller_btn_dir_down_handler(ButtonEvent* btn, int event)
 {
     if (event == ButtonEvent::EVENT_PRESSED) {
-        pid_vel.P -= 0.1;
-        pid_vel.I -= 0.0005;
+        pid_vel.P -= 0.001;
+        pid_vel.I -= 0.0001;
         ESP_LOGI(TAG, "pid_vel.P: %f", pid_vel.P);
     }
 }
