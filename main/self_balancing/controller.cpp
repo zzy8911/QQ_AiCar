@@ -15,11 +15,13 @@
 XboxSeriesXControllerESP32_asukiaaa::Core* xboxController = nullptr;
 
 #define TAG "Controller"
+// #define DEBUG
 
 int g_bot_ctrl_type = BOT_CONTROL_TYPE_AI;
 
 static ButtonEvent btn_a(5000);
 static ButtonEvent btn_b(5000);
+static ButtonEvent btn_x(5000);
 static ButtonEvent btn_dir_up(5000);
 static ButtonEvent btn_dir_down(5000);
 static ButtonEvent btn_dir_left(5000);
@@ -36,6 +38,11 @@ static inline bool btn_a_is_push(void)
 static inline bool btn_b_is_push(void)
 {
     return (xboxController->xboxNotif.btnB == true);
+}
+
+static inline bool btn_x_is_push(void)
+{
+    return (xboxController->xboxNotif.btnX == true);
 }
 
 static inline bool btn_dir_up_is_push(void)
@@ -66,9 +73,6 @@ static void controller_btn_a_handler(ButtonEvent* btn, int event)
             g_bot_ctrl_type = BOT_CONTROL_TYPE_AI;
         }
         ESP_LOGI(TAG, "channge to %d control type", g_bot_ctrl_type);
-
-        g_mid_value += 0.5f;
-        ESP_LOGI(TAG, "g_mid_value: %f", g_mid_value);
     }
 }
 
@@ -78,47 +82,66 @@ static void controller_btn_b_handler(ButtonEvent* btn, int event)
     if (event == ButtonEvent::EVENT_PRESSED) {
         // g_bot_ctrl_type = BOT_CONTROL_TYPE_AI;
         // dbot.spin(90);
+// #ifdef DEBUG
+        g_mid_value += 0.5f; // 调整偏置参数
+        ESP_LOGI(TAG, "g_mid_value: %f", g_mid_value);
+// #endif
+    }
+}
 
+static void controller_btn_x_handler(ButtonEvent* btn, int event)
+{
+    if (event == ButtonEvent::EVENT_PRESSED) {
+// #ifdef DEBUG
         g_mid_value -= 0.5f; // 调整偏置参数
         ESP_LOGI(TAG, "g_mid_value: %f", g_mid_value);
+// #endif
     }
 }
 
 static void controller_btn_dir_up_handler(ButtonEvent* btn, int event)
 {
     if (event == ButtonEvent::EVENT_PRESSED) {
+#ifdef DEBUG
         pid_vel.P += 0.001;
         pid_vel.I += 0.0001;
         ESP_LOGI(TAG, "pid_vel.P: %f", pid_vel.P);
+#endif
     }
 }
 
 static void controller_btn_dir_down_handler(ButtonEvent* btn, int event)
 {
     if (event == ButtonEvent::EVENT_PRESSED) {
+#ifdef DEBUG
         pid_vel.P -= 0.001;
         pid_vel.I -= 0.0001;
         ESP_LOGI(TAG, "pid_vel.P: %f", pid_vel.P);
+#endif
     }
 }
 
 static void controller_btn_dir_left_handler(ButtonEvent* btn, int event)
 {
     if (event == ButtonEvent::EVENT_PRESSED) {
+#ifdef DEBUG
         pid_stb.D += 0.0001;
         ESP_LOGI(TAG, "pid_stb.D: %f", pid_stb.D);
+#endif
     }
 }
 
 static void controller_btn_dir_right_handler(ButtonEvent* btn, int event)
 {
     if (event == ButtonEvent::EVENT_PRESSED) {
+#ifdef DEBUG
         pid_stb.D -= 0.0001;
         ESP_LOGI(TAG, "pid_stb.D: %f", pid_stb.D);
+#endif
     }
 }
 
-static long _map(long x, long in_min, long in_max, long out_min, long out_max) {
+static float _map(long x, long in_min, long in_max, long out_min, long out_max) {
     const long run = in_max - in_min;
     if(run == 0){
         ESP_LOGE(TAG, "map(): Invalid input range, min == max");
@@ -126,13 +149,16 @@ static long _map(long x, long in_min, long in_max, long out_min, long out_max) {
     }
     const long rise = out_max - out_min;
     const long delta = x - in_min;
-    return (delta * rise) / run + out_min;
+
+    float result = ((float)delta * (float)rise) / (float)run + (float)out_min;
+
+    return result;
 }
 
 
 static void controller_set_motor_status(void)
 {
-    int speed = 0, steering = 0;
+    float speed = 0, steering = 0;
     static int last_speed = 0, last_steering = 0;
 
     if (g_bot_ctrl_type != BOT_CONTROL_TYPE_JOYSTICKS) {
@@ -165,12 +191,13 @@ void controller_update_task(void *parameter)
                 // demoVibration_2();
                 btn_a.EventMonitor(btn_a_is_push());
                 btn_b.EventMonitor(btn_b_is_push());
+                btn_x.EventMonitor(btn_x_is_push());
                 btn_dir_up.EventMonitor(btn_dir_up_is_push());
                 btn_dir_down.EventMonitor(btn_dir_down_is_push());
                 btn_dir_left.EventMonitor(btn_dir_left_is_push());
                 btn_dir_right.EventMonitor(btn_dir_right_is_push());
 
-                // controller_set_motor_status();
+                controller_set_motor_status();
             }
         } else {
             // Serial.println("not connected");
@@ -193,6 +220,7 @@ void controller_init(const char *ble_addr)
 
     btn_a.EventAttach(controller_btn_a_handler);
     btn_b.EventAttach(controller_btn_b_handler);
+    btn_x.EventAttach(controller_btn_x_handler);
     btn_dir_up.EventAttach(controller_btn_dir_up_handler);
     btn_dir_down.EventAttach(controller_btn_dir_down_handler);
     btn_dir_left.EventAttach(controller_btn_dir_left_handler);

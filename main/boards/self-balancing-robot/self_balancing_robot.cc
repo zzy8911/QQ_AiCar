@@ -17,6 +17,8 @@
 #include <driver/spi_common.h>
 #include "assets/lang_config.h"
 #include "self_balancing/hal.h"
+#include "mcp_server.h"
+#include "../../self_balancing/hal.h"
 
 #if defined(LCD_TYPE_ILI9341_SERIAL)
 #include "esp_lcd_ili9341.h"
@@ -194,6 +196,35 @@ private:
         thing_manager.AddThing(iot::CreateThing("Screen"));
     }
 
+    void InitializeTools() {
+        auto& mcp_server = McpServer::GetInstance();
+        mcp_server.AddTool("self.rebot.control",
+            "forward: 前进\n"
+            "backward: 后退\n"
+            "distance: 厘米\n"
+            "turn_around: 转圈",
+            PropertyList({
+                Property("action", kPropertyTypeString),  // 动作类型
+                Property("distance", kPropertyTypeInteger, 30, 1, 50)  // 可选参数，仅前进/后退需要
+            }),
+            [this](const PropertyList& properties) -> ReturnValue {
+                int distance = properties["distance"].value<int>();
+                const std::string& action = properties["action"].value<std::string>();
+
+                ESP_LOGI(TAG, "Received control action: %s, distance: %d", action.c_str(), distance);
+
+                if (action == "forward") {
+                    HAL::motor_move(FORWARD, distance);
+                } else if (action == "backward") {
+                    HAL::motor_move(BACKWARD, distance);
+                } else if (action == "turn_around") {
+                    HAL::motor_turn_around();
+                }
+
+                return true;
+            });
+    }
+
 public:
     CompactWifiBoardLCD() :
         boot_button_(BOOT_BUTTON_GPIO),
@@ -203,6 +234,7 @@ public:
         InitializeLcdDisplay();
         InitializeButtons();
         InitializeIot();
+        InitializeTools();
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->RestoreBrightness();
         }

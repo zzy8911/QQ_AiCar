@@ -29,9 +29,9 @@ LowPassFilter lpf_steering(0.5);
 // stabilisation pid
 // 初始值 P0.3 D: 0.02  -- 0.18 0.024
 // PIDController pid_stb(0.03, 0, 0.002, 100000, MOTOR_MAX_TORQUE); // *0.6
-GyroPID pid_stb(0.01572, 0, -0.0050, MOTOR_MAX_TORQUE); // 0.018, 0, -0.009, *0.6
+GyroPID pid_stb(0.01572, 0, -0.0045, MOTOR_MAX_TORQUE); // 0.018, 0, -0.009, *0.6
 #define PID_VEL_P (0.061)
-#define PID_VEL_I (0.0061)// 0.005
+#define PID_VEL_I (0.0061)
 #define PID_VEL_D (0)
 PIDController pid_vel(PID_VEL_P, PID_VEL_I, PID_VEL_D, 100000, MOTOR_MAX_TORQUE);
 PIDController pid_vel_tmp(PID_VEL_P, PID_VEL_I, PID_VEL_D, 100000, MOTOR_MAX_TORQUE);
@@ -207,7 +207,7 @@ static int run_balance_task(BLDCMotor *motor_l, BLDCMotor *motor_r,
             ctlr_start_ms = millis();
         } else {
             if (millis() > ctlr_start_ms + BALANCE_ENABLE_STEERING_I_TIME) {
-                // pid_vel.I = pid_vel_tmp.I;
+                pid_vel.I = pid_vel_tmp.I;
             }
         }
         speed_adj = pid_vel(lpf_throttle(throttle) - speed);
@@ -429,8 +429,39 @@ void HAL::motor_set_speed(float speed, float steering)
             steering = BOT_MAX_STEERING;
         }
 
-        g_throttle = (float)speed;
-        g_steering = (float)-steering;
+        g_throttle = speed;
+        g_steering = steering;
         // ESP_LOGE(TAG, "throttle: %.2f steering %.2f.", g_throttle, g_steering);
     }
+}
+
+constexpr float WHEEL_RADIUS_M = 0.0325f;  // 65mm 轮子
+constexpr float TARGET_SPEED_MPS = 0.3f;   // 目标线速度：0.3 m/s
+constexpr float TARGET_SPEED_RADS = TARGET_SPEED_MPS / WHEEL_RADIUS_M;  // ≈9.23 rad/s
+
+void HAL::motor_move(direction_t dir, int distance_cm) {
+    float distance_m = static_cast<float>(distance_cm) / 100.0f;
+    float move_time_sec = distance_m / TARGET_SPEED_MPS;  // t = s / v
+
+    // 开始行驶
+    if (dir == FORWARD) {
+        HAL::motor_set_speed(-TARGET_SPEED_RADS, 0);
+    } else if (dir == BACKWARD) {
+        HAL::motor_set_speed(TARGET_SPEED_RADS, 0);
+    } else {
+        ESP_LOGE(TAG, "Invalid direction for motor move.");
+        return;
+    }
+
+    // 延时一段时间，表示运行这么久就可以了
+    vTaskDelay(pdMS_TO_TICKS(move_time_sec * 1000));
+
+    // 停车
+    HAL::motor_set_speed(0.0f, 0.0f);
+}
+
+void HAL::motor_turn_around(void) {
+    HAL::motor_set_speed(0, 30);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    HAL::motor_set_speed(0.0f, 0.0f);
 }

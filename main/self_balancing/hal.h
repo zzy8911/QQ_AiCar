@@ -30,6 +30,11 @@ enum BOT_RUNNING_MODE {
     BOT_RUNNING_BALANCE,
 };
 
+typedef enum {
+    FORWARD = 0,
+    BACKWARD,
+} direction_t;
+
 typedef enum
 {
     MOTOR_UNBOUND_FINE_DETENTS,        // Fine values\nWith detents
@@ -52,7 +57,7 @@ typedef enum {
     ENCODER_I2C_BUS,
 } I2C_BUS;
 
-#define MOTOR_MAX_SPEED  15
+#define MOTOR_MAX_SPEED  20
 /** using gyro_z */
 // #define BOT_MAX_STEERING 500 
 /** no feedback */
@@ -71,6 +76,8 @@ namespace HAL
     void motor_set_speed(float speed, float steering);
     double motor_get_cur_angle(void);
     double get_motor_angle_offset(int id);
+    void motor_move(direction_t dir, int distance_cm);
+    void motor_turn_around(void);
 
     void  imu_init(void);
     void  imu_update(void *pvParameters);
