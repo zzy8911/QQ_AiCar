@@ -51,7 +51,7 @@ private:
     std::list<std::vector<uint8_t>> wake_word_opus_;
     std::mutex wake_word_mutex_;
     std::condition_variable wake_word_cv_;
-    StaticTask_t audio_detection_task_tcb_;
+    static StaticTask_t audio_detection_task_tcb_;
     StackType_t* audio_detection_task_stack_ = nullptr;
 
     void StoreWakeWordData(const int16_t* data, size_t size);

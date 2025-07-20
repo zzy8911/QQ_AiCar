@@ -10,6 +10,8 @@
 
 #define TAG "AfeWakeWord"
 
+StaticTask_t AfeWakeWord::audio_detection_task_tcb_;
+
 AfeWakeWord::AfeWakeWord()
     : afe_data_(nullptr),
       wake_word_pcm_(),
@@ -74,7 +76,7 @@ void AfeWakeWord::Initialize(AudioCodec* codec) {
     afe_iface_ = esp_afe_handle_from_config(afe_config);
     afe_data_ = afe_iface_->create_from_config(afe_config);
 
-    audio_detection_task_stack_ = (StackType_t*) heap_caps_malloc(4096 * 2 * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
+    audio_detection_task_stack_ = (StackType_t*) heap_caps_malloc(4096 * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
     xTaskCreateStatic([](void* arg) {
         auto this_ = (AfeWakeWord*)arg;
         this_->AudioDetectionTask();
