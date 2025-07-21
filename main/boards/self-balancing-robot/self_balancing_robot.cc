@@ -18,7 +18,7 @@
 #include "assets/lang_config.h"
 #include "self_balancing/hal.h"
 #include "mcp_server.h"
-#include "../../self_balancing/hal.h"
+#include "../../self_balancing/motor.h"
 
 #if defined(LCD_TYPE_ILI9341_SERIAL)
 #include "esp_lcd_ili9341.h"
@@ -214,11 +214,11 @@ private:
                 ESP_LOGI(TAG, "Received control action: %s, distance: %d", action.c_str(), distance);
 
                 if (action == "forward") {
-                    HAL::motor_move(FORWARD, distance);
+                    Motor::getInstance().move(Motor::FORWARD, distance);
                 } else if (action == "backward") {
-                    HAL::motor_move(BACKWARD, distance);
+                    Motor::getInstance().move(Motor::BACKWARD, distance);
                 } else if (action == "turn_around") {
-                    HAL::motor_turn_around();
+                    Motor::getInstance().turnAround();
                 }
 
                 return true;

@@ -206,8 +206,9 @@ elseif(CONFIG_BOARD_TYPE_SELF_BALANCING_ROBOT)
     list(APPEND SOURCES "self_balancing/hal.cpp"
                         "self_balancing/ICM42688.cpp"
                         "self_balancing/kalman.cpp"
+			"self_balancing/as5600_encoder.cc"
                         "self_balancing/imu.cpp"
-                        "self_balancing/motor.cpp"
+                        "self_balancing/motor.cc"
                         "button/button_event.cpp"
                         "XboxController/XboxControllerNotificationParser.cpp"
                         "self_balancing/controller.cpp")

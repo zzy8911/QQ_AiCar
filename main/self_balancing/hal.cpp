@@ -1,6 +1,8 @@
 
 #include "hal.h"
 #include "boards/self-balancing-robot/config.h"
+#include "motor.h"
+#include "controller.h"
 
 #define TAG "HAL"
 
@@ -70,5 +72,5 @@ void HAL::Init()
     ESP_LOGI(TAG, "init mpu...");
     imu_init();
     ESP_LOGI(TAG, "init motor...");
-    motor_init();
+    Motor::getInstance().init();
 }

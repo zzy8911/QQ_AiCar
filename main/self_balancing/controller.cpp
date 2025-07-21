@@ -83,8 +83,8 @@ static void controller_btn_b_handler(ButtonEvent* btn, int event)
         // g_bot_ctrl_type = BOT_CONTROL_TYPE_AI;
         // dbot.spin(90);
 // #ifdef DEBUG
-        g_mid_value += 0.5f; // 调整偏置参数
-        ESP_LOGI(TAG, "g_mid_value: %f", g_mid_value);
+        Motor::getInstance().adjustMidValue(0.5f);
+        ESP_LOGI(TAG, "mid_value: %f", Motor::getInstance().getMidValue());
 // #endif
     }
 }
@@ -93,8 +93,8 @@ static void controller_btn_x_handler(ButtonEvent* btn, int event)
 {
     if (event == ButtonEvent::EVENT_PRESSED) {
 // #ifdef DEBUG
-        g_mid_value -= 0.5f; // 调整偏置参数
-        ESP_LOGI(TAG, "g_mid_value: %f", g_mid_value);
+        Motor::getInstance().adjustMidValue(-0.5f);
+        ESP_LOGI(TAG, "mid_value: %f", Motor::getInstance().getMidValue());
 // #endif
     }
 }
@@ -159,7 +159,6 @@ static float _map(long x, long in_min, long in_max, long out_min, long out_max) 
 static void controller_set_motor_status(void)
 {
     float speed = 0, steering = 0;
-    static int last_speed = 0, last_steering = 0;
 
     if (g_bot_ctrl_type != BOT_CONTROL_TYPE_JOYSTICKS) {
         return;
@@ -167,15 +166,16 @@ static void controller_set_motor_status(void)
     
     // 左摇杆垂直控制速度，右摇杆水平控制方向
     speed = _map(xboxController->xboxNotif.joyLVert, 0, 65535, -MOTOR_MAX_SPEED, MOTOR_MAX_SPEED);
-    steering = _map(xboxController->xboxNotif.joyRHori, 0, 65535, -BOT_MAX_STEERING, BOT_MAX_STEERING);
+    steering = _map(xboxController->xboxNotif.joyRHori, 0, 65535, -MOTOR_MAX_STEERING, MOTOR_MAX_STEERING);
 
+    // static int last_speed = 0, last_steering = 0;
     // if (speed == 0 && last_speed == 0 && steering == 0 && last_steering == 0) {
     //     // no change
     //     return;
     // }
     // last_speed = speed;
     // last_steering = steering;
-    HAL::motor_set_speed(speed, steering);
+    Motor::getInstance().setSpeed(speed, steering);
 }
 
 void controller_update_task(void *parameter)

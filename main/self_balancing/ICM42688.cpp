@@ -946,7 +946,6 @@ int ICM42688::setUIFilterBlock(UIFiltOrd gyroUIFiltOrder, UIFiltOrd accelUIFiltO
 	return 1;
 }
 
-#define PI 3.14159265358979323846
 int ICM42688::setGyroNotchFilter(float gyroNFfreq_x, float gyroNFfreq_y, float gyroNFfreq_z, GyroNFBWsel gyro_nf_bw) {
 	setBank(3);
 	// get clock div
@@ -1065,11 +1064,6 @@ float ICM42688::getGyroRes() {
 /* Self Test*/
 int ICM42688::selfTest() {
 	return 1;
-}
-
-static unsigned long millis()
-{
-    return (unsigned long)(esp_timer_get_time() / 1000ULL);
 }
 
 #define ALPHA                       0.93f        /*!< Weight of gyroscope */

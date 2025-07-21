@@ -12,7 +12,7 @@
 void controller_init(const char *ble_addr);
 
 enum bot_control_type {
-    BOT_CONTROL_TYPE_AI,
+    BOT_CONTROL_TYPE_AI = 0,
     BOT_CONTROL_TYPE_JOYSTICKS,
     BOT_CONTROL_TYPE_MAX,
 };

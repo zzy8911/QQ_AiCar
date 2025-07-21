@@ -4,7 +4,6 @@
 
 #define TAG "I2cDevice"
 
-
 I2cDevice::I2cDevice(i2c_master_bus_handle_t i2c_bus, uint8_t addr) {
     i2c_device_config_t i2c_device_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
@@ -17,6 +16,18 @@ I2cDevice::I2cDevice(i2c_master_bus_handle_t i2c_bus, uint8_t addr) {
     };
     ESP_ERROR_CHECK(i2c_master_bus_add_device(i2c_bus, &i2c_device_cfg, &i2c_device_));
     assert(i2c_device_ != NULL);
+}
+
+I2cDevice::~I2cDevice() {
+    if (i2c_device_) {
+        esp_err_t ret = i2c_master_bus_rm_device(i2c_device_);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to remove I2C device: %s", esp_err_to_name(ret));
+        } else {
+            ESP_LOGI(TAG, "I2C device removed successfully");
+        }
+        i2c_device_ = nullptr;
+    }
 }
 
 void I2cDevice::WriteReg(uint8_t reg, uint8_t value) {
