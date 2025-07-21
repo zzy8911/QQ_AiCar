@@ -60,7 +60,7 @@ static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
     {0xba, (uint8_t[]){0xFF, 0xFF}, 2, 0},
 };
 #endif
- 
+
 #define TAG "CompactWifiBoardLCD"
 
 LV_FONT_DECLARE(font_puhui_30_4);
@@ -112,13 +112,13 @@ private:
         gc9a01_vendor_config_t gc9107_vendor_config = {
             .init_cmds = gc9107_lcd_init_cmds,
             .init_cmds_size = sizeof(gc9107_lcd_init_cmds) / sizeof(gc9a01_lcd_init_cmd_t),
-        };        
+        };
 #else
         ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
 #endif
-        
+
         esp_lcd_panel_reset(panel);
- 
+
 
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
@@ -148,7 +148,7 @@ private:
     }
 
 
- 
+
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
