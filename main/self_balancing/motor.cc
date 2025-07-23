@@ -286,29 +286,26 @@ void Motor::task()
     }
 }
 
-void Motor::setSpeed(float speed, float steering)
+void Motor::setMotion(float speed, float steering)
 {
-    if (throttle_ != speed || steering_ != steering) {
-        // ESP_LOGE(TAG, "speed: %d steering %d.", speed, steering);
+    speed = std::clamp(speed, -static_cast<float>(MOTOR_MAX_SPEED), static_cast<float>(MOTOR_MAX_SPEED));
+    steering = std::clamp(steering, -static_cast<float>(MOTOR_MAX_STEERING), static_cast<float>(MOTOR_MAX_STEERING));
 
-        speed = std::clamp(speed, -static_cast<float>(MOTOR_MAX_SPEED), static_cast<float>(MOTOR_MAX_SPEED));
-        steering = std::clamp(steering, -static_cast<float>(MOTOR_MAX_STEERING), static_cast<float>(MOTOR_MAX_STEERING));
-
-        throttle_ = speed;
-        steering_ = steering;
-        // ESP_LOGE(TAG, "throttle: %.2f steering %.2f.", throttle_, steering_);
-    }
+    throttle_ = speed;
+    steering_ = steering;
+    ESP_LOGI(TAG, "throttle: %.2f, steering %.2f.", throttle_, steering_);
 }
 
+/* controlled by AI */
 void Motor::move(direction_t dir, int distance_cm) {
     float distance_m = static_cast<float>(distance_cm) / 100.0f;
     float move_time_sec = distance_m / TARGET_SPEED_MPS;  // t = s / v
 
     // 开始行驶
     if (dir == FORWARD) {
-        setSpeed(-TARGET_SPEED_RADS, 0);
+        setMotion(-TARGET_SPEED_RADS, 0);
     } else if (dir == BACKWARD) {
-        setSpeed(TARGET_SPEED_RADS, 0);
+        setMotion(TARGET_SPEED_RADS, 0);
     } else {
         ESP_LOGE(TAG, "Invalid direction for motor move.");
         return;
@@ -318,11 +315,29 @@ void Motor::move(direction_t dir, int distance_cm) {
     vTaskDelay(pdMS_TO_TICKS(move_time_sec * 1000));
 
     // 停车
-    setSpeed(0.0f, 0.0f);
+    setMotion(0.0f, 0.0f);
+}
+
+void Motor::rotate(int angle) {
+    constexpr int ROTATE_LOOP_DELAY_MS = 10;
+    float target_yaw = HAL::imu_get_yaw() + angle;
+    int elapsed = 0;
+
+    while ((elapsed+=ROTATE_LOOP_DELAY_MS) < 5000) { // 5秒超时
+        if (angle < 0) {
+            setMotion(0, 30); // CW
+        } else {
+            setMotion(0, -30); // CCW
+        }
+        vTaskDelay(pdMS_TO_TICKS(ROTATE_LOOP_DELAY_MS));
+
+        if (fabs(HAL::imu_get_yaw() - target_yaw) < 2.0f) {
+            break;
+        }
+    }
+    setMotion(0, 0);
 }
 
 void Motor::turnAround(void) {
-    setSpeed(0, 30);
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    setSpeed(0.0f, 0.0f);
+    rotate(360);
 }

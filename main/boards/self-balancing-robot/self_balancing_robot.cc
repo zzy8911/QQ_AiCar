@@ -201,24 +201,39 @@ private:
         mcp_server.AddTool("self.rebot.control",
             "forward: 前进\n"
             "backward: 后退\n"
+            "left: 左转\n"
+            "right: 右转\n"
+            "rotate: 旋转\n"
             "distance: 厘米\n"
+            "degree: 角度\n"
             "turn_around: 转圈",
             PropertyList({
                 Property("action", kPropertyTypeString),  // 动作类型
-                Property("distance", kPropertyTypeInteger, 30, 1, 50)  // 可选参数，仅前进/后退需要
+                Property("distance", kPropertyTypeInteger, 30, 1, 50),  // 可选参数，仅前进/后退需要
+                Property("degree", kPropertyTypeInteger, 90)
             }),
             [this](const PropertyList& properties) -> ReturnValue {
-                int distance = properties["distance"].value<int>();
                 const std::string& action = properties["action"].value<std::string>();
+                int distance = properties["distance"].value<int>();
+                int degree = properties["degree"].value<int>();
 
-                ESP_LOGI(TAG, "Received control action: %s, distance: %d", action.c_str(), distance);
+                ESP_LOGI(TAG, "Received control action:%s, distance:%d, degree:%d", action.c_str(), distance, degree);
 
                 if (action == "forward") {
                     Motor::getInstance().move(Motor::FORWARD, distance);
                 } else if (action == "backward") {
                     Motor::getInstance().move(Motor::BACKWARD, distance);
+                } else if (action == "left") {
+                    Motor::getInstance().rotate(degree); // According to the right-hand rule, counter-clockwise is the positive direction.
+                } else if (action == "right") {
+                    Motor::getInstance().rotate(-degree); // According to the right-hand rule, clockwise is the negative direction.
+                } else if (action == "rotate") {
+                    Motor::getInstance().rotate(degree);
                 } else if (action == "turn_around") {
                     Motor::getInstance().turnAround();
+                } else {
+                    ESP_LOGW(TAG, "Unknown action: %s", action.c_str());
+                    return false;
                 }
 
                 return true;

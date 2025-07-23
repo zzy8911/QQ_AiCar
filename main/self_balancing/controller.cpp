@@ -17,8 +17,6 @@ XboxSeriesXControllerESP32_asukiaaa::Core* xboxController = nullptr;
 #define TAG "Controller"
 // #define DEBUG
 
-int g_bot_ctrl_type = BOT_CONTROL_TYPE_AI;
-
 static ButtonEvent btn_a(5000);
 static ButtonEvent btn_b(5000);
 static ButtonEvent btn_x(5000);
@@ -68,11 +66,6 @@ static inline bool btn_dir_right_is_push(void)
 static void controller_btn_a_handler(ButtonEvent* btn, int event)
 {
     if (event == ButtonEvent::EVENT_PRESSED) {
-        g_bot_ctrl_type++;
-        if (g_bot_ctrl_type >= BOT_CONTROL_TYPE_MAX) {
-            g_bot_ctrl_type = BOT_CONTROL_TYPE_AI;
-        }
-        ESP_LOGI(TAG, "channge to %d control type", g_bot_ctrl_type);
     }
 }
 
@@ -80,8 +73,6 @@ static void controller_btn_b_handler(ButtonEvent* btn, int event)
 {
     // DBot &dbot = DBot::getInstance();
     if (event == ButtonEvent::EVENT_PRESSED) {
-        // g_bot_ctrl_type = BOT_CONTROL_TYPE_AI;
-        // dbot.spin(90);
 // #ifdef DEBUG
         Motor::getInstance().adjustMidValue(0.5f);
         ESP_LOGI(TAG, "mid_value: %f", Motor::getInstance().getMidValue());
@@ -155,27 +146,24 @@ static float _map(long x, long in_min, long in_max, long out_min, long out_max) 
     return result;
 }
 
-
 static void controller_set_motor_status(void)
 {
     float speed = 0, steering = 0;
+    static float last_speed = 0, last_steering = 0;
 
-    if (g_bot_ctrl_type != BOT_CONTROL_TYPE_JOYSTICKS) {
-        return;
-    }
-    
     // 左摇杆垂直控制速度，右摇杆水平控制方向
     speed = _map(xboxController->xboxNotif.joyLVert, 0, 65535, -MOTOR_MAX_SPEED, MOTOR_MAX_SPEED);
     steering = _map(xboxController->xboxNotif.joyRHori, 0, 65535, -MOTOR_MAX_STEERING, MOTOR_MAX_STEERING);
 
-    // static int last_speed = 0, last_steering = 0;
-    // if (speed == 0 && last_speed == 0 && steering == 0 && last_steering == 0) {
-    //     // no change
-    //     return;
-    // }
-    // last_speed = speed;
-    // last_steering = steering;
-    Motor::getInstance().setSpeed(speed, steering);
+    // 是否遥控数据有效
+    bool has_input = fabs(speed) > 0.1f || fabs(steering) > 0.1f; // The joystick is at its neutral position, indicating no control input.
+    if (has_input) {
+        if (fabs(speed - last_speed) > 0.1f || fabs(steering - last_steering) > 0.1f) {
+            last_speed = (int)speed;
+            last_steering = (int)steering;
+            Motor::getInstance().setMotion(speed, steering);
+        }
+    }
 }
 
 void controller_update_task(void *parameter)

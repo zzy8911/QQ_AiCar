@@ -410,6 +410,7 @@ void ICM42688_FIFO::getFifoTemperature_C(size_t* size, float* data) {
 /* estimates the gyro biases */
 int ICM42688::calibrateGyro() {
 	// set at a lower range (more resolution) since IMU not moving
+	int start = millis();
 	const GyroFS current_fssel = _gyroFS;
 	if (setGyroFS(dps250) < 0) {
 		return -1;
@@ -421,15 +422,17 @@ int ICM42688::calibrateGyro() {
 	_gyroBD[2] = 0;
 	for (size_t i = 0; i < NUM_CALIB_SAMPLES; i++) {
 		getAGT();
-		_gyroBD[0] += (gyrX() + _gyrB[0]) / NUM_CALIB_SAMPLES;
-		_gyroBD[1] += (gyrY() + _gyrB[1]) / NUM_CALIB_SAMPLES;
-		_gyroBD[2] += (gyrZ() + _gyrB[2]) / NUM_CALIB_SAMPLES;
-		vTaskDelay(pdMS_TO_TICKS(1));
+		_gyroBD[0] += (gyrX() + _gyrB[0]);
+		_gyroBD[1] += (gyrY() + _gyrB[1]);
+		_gyroBD[2] += (gyrZ() + _gyrB[2]);
+		vTaskDelay(pdMS_TO_TICKS(2));
 	}
-	_gyrB[0] = _gyroBD[0];
-	_gyrB[1] = _gyroBD[1];
-	_gyrB[2] = _gyroBD[2];
-
+	_gyrB[0] = _gyroBD[0] / NUM_CALIB_SAMPLES;
+	_gyrB[1] = _gyroBD[1] / NUM_CALIB_SAMPLES;
+	_gyrB[2] = _gyroBD[2] / NUM_CALIB_SAMPLES;
+	int end = millis();
+	ESP_LOGI(TAG, "Gyro calibration took %d ms, _gyrB[0]:%.2f, _gyrB[1]:%.2f, _gyrB[2]:%.2f",
+					end - start, _gyrB[0], _gyrB[1], _gyrB[2]);
 	// recover the full scale setting
 	if (setGyroFS(current_fssel) < 0) {
 		return -4;
@@ -1158,20 +1161,22 @@ esp_err_t ICM42688::filter()
 
 		if (_filter_type == HAL::FilterType::COMPLEMENTARY) {
 			// Complementary filter
-			_pitch_comp = ALPHA * (_pitch_comp + gyrX() * dt) + (1 - ALPHA) * _pitch_acc;
+			_pitch_comp = ALPHA * (_pitch_comp + _gyr[X] * dt) + (1 - ALPHA) * _pitch_acc;
 			_angle.pitch = _pitch_comp;
 		} else if (_filter_type == HAL::FilterType::KALMAN) {
 			// Kalman filter
-			_pitch_kalman = _kalman.getAngle(_pitch_acc, gyrX(), dt); // Calculate the angle using a Kalman filter
+			_pitch_kalman = _kalman.getAngle(_pitch_acc, _gyr[X], dt); // Calculate the angle using a Kalman filter
 			_angle.pitch = _pitch_kalman;
 		} else if (_filter_type == HAL::FilterType::GYRO_ONLY) {
 			// Gyro only
-			_pitch_gyro += gyrX() * dt;
+			_pitch_gyro += _gyr[X] * dt;
 			_angle.pitch = _pitch_gyro;
 		} else {
 			// NONE
 			_angle.pitch = _pitch_acc;
 		}
+
+		_angle.yaw += lowPassGyroZ() * dt;
 
 		// ESP_LOGI(TAG, "pitch_acc: %f", _pitch_acc);
 		// ESP_LOGI(TAG, "pitch_gyro: %f", _pitch_gyro);

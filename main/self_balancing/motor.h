@@ -57,8 +57,9 @@ public:
     ~Motor();
 
     int init();
-    void setSpeed(float speed, float steering);
+    void setMotion(float speed, float steering);
     void move(direction_t dir, int distance_cm);
+    void rotate(int angle);
     void turnAround(void);
 
     void adjustMidValue(float delta) {

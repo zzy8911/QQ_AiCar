@@ -85,8 +85,7 @@ float HAL::lowPassGyroZ(float alpha)
 
 float HAL::imu_get_yaw(void)
 {
-    // FIXME: 需要修改
-    return 0;
+    return imu->getYaw();
 }
 
 /*

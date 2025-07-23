@@ -15,23 +15,11 @@ public:
         outMin_ = -limit;
         outMax_ = limit;
     }
-    float operator()(float target, float feedback, float gyro)
-    {
-        float error = target - feedback;
-
-        float pOut = P * error;
-        kiOut_ += I * error;
-        float dOut = D * gyro;
-
-        // 限制各部分输出范围
-        pOut = std::clamp(pOut, kpMin_, kpMax_);
-        kiOut_ = std::clamp(kiOut_, kiMin_, kiMax_);
-        dOut = std::clamp(dOut, kdMin_, kdMax_);
-
-        pidOut_ = pOut + kiOut_ + dOut;
-        pidOut_ = std::clamp(pidOut_, outMin_, outMax_);
-
-        return pidOut_;
+    float operator()(float target, float feedback, float gyro) {
+        return compute(target - feedback, gyro);
+    }
+    float operator()(float error, float gyro) {
+        return compute(error, gyro);
     }
     void reset()
     {
@@ -49,4 +37,20 @@ private:
 
     float kiOut_ = 0.0f;
     float pidOut_ = 0.0f;
+
+    float compute(float error, float gyro) {
+        float pOut = P * error;
+        kiOut_ += I * error;
+        float dOut = D * gyro;
+
+        // 限制各部分输出范围
+        pOut = std::clamp(pOut, kpMin_, kpMax_);
+        kiOut_ = std::clamp(kiOut_, kiMin_, kiMax_);
+        dOut = std::clamp(dOut, kdMin_, kdMax_);
+
+        pidOut_ = pOut + kiOut_ + dOut;
+        pidOut_ = std::clamp(pidOut_, outMin_, outMax_);
+
+        return pidOut_;
+    }
 };

@@ -77,6 +77,7 @@ class ICM42688 {
 	struct filter_t {
 		float roll;
 		float pitch;
+		float yaw;
 	};
 
 	/**
@@ -276,14 +277,15 @@ class ICM42688 {
 
 	float getPitch() { return _angle.pitch; };
 	float getRoll() { return _angle.roll; };
+	float getYaw() { return _angle.yaw; };
 
-	float lowPassGyroX(float alpha)
+	float lowPassGyroX(float alpha=0.2)
 	{
 		gyroXFV = alpha * _gyr[X] + (1 - alpha) * gyroXFV;
 		return gyroXFV;
 	}
 
-	float lowPassGyroZ(float alpha)
+	float lowPassGyroZ(float alpha=0.2)
 	{
 		gyroZFV = alpha * _gyr[Z] + (1 - alpha) * gyroZFV;
 		return gyroZFV;
@@ -333,7 +335,7 @@ class ICM42688 {
 	float _gyroBD[3] = {};
 	float _gyrB[3]   = {};
 
-	struct filter_t _angle = {0.0f, 0.0f};  ///< angle from filter
+	struct filter_t _angle = {0.0f, 0.0f, 0.0f};  ///< angle from filter
 	HAL::FilterType _filter_type = HAL::FilterType::NONE;  ///< filter type
 	Kalman _kalman;  ///< Kalman filter for angle estimation
 	float _pitch_kalman = 0.0f;  ///< angle from Kalman filter
