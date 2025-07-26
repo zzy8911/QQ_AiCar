@@ -19,7 +19,7 @@ inline constexpr PIDParams PID_VEL {0.061f, 0.0061f, 0.0f};
 
 constexpr float MOTOR_MAX_TORQUE = 45.0f;
 constexpr int MOTOR_MAX_SPEED = 20;
-constexpr int MOTOR_MAX_STEERING = 60;
+constexpr int MOTOR_MAX_STEERING = 50;
 
 constexpr int BALANCE_STOP_PITCH_OFFSET = 40;
 
@@ -90,7 +90,7 @@ private:
 
     Settings settings;
 
-    float mid_value_ = -1.0f; // 偏置参数
+    float mid_value_ = 0.5f; // 偏置参数
     float throttle_ = 0;
     float steering_ = 0;
 

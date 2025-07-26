@@ -13,7 +13,7 @@ Motor::Motor()
       pid_stb_(PID_STB.P, PID_STB.I, PID_STB.D, MOTOR_MAX_TORQUE),
       pid_vel_(PID_VEL.P, PID_VEL.I, PID_VEL.D, 100000, MOTOR_MAX_TORQUE),
       pid_vel_tmp_(PID_VEL.P, PID_VEL.I, PID_VEL.D, 100000, MOTOR_MAX_TORQUE),
-      pid_steering_(0.01, 0, 0.001, MOTOR_MAX_TORQUE / 2),
+      pid_steering_(0.02, 0, 0.001, MOTOR_MAX_TORQUE / 2),
       lpf_throttle(0.5),
       lpf_steering(0.5) {}
 

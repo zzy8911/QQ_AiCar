@@ -150,18 +150,32 @@ static void controller_set_motor_status(void)
 {
     float speed = 0, steering = 0;
     static float last_speed = 0, last_steering = 0;
+    static long last_update_time = 0; // 只要在控制，该值就会实时更新
+    static bool already_stopped = false;
+    long now = millis();
 
     // 左摇杆垂直控制速度，右摇杆水平控制方向
     speed = _map(xboxController->xboxNotif.joyLVert, 0, 65535, -MOTOR_MAX_SPEED, MOTOR_MAX_SPEED);
     steering = _map(xboxController->xboxNotif.joyRHori, 0, 65535, -MOTOR_MAX_STEERING, MOTOR_MAX_STEERING);
 
-    // 是否遥控数据有效
-    bool has_input = fabs(speed) > 0.1f || fabs(steering) > 0.1f; // The joystick is at its neutral position, indicating no control input.
-    if (has_input) {
-        if (fabs(speed - last_speed) > 0.1f || fabs(steering - last_steering) > 0.1f) {
-            last_speed = (int)speed;
-            last_steering = (int)steering;
-            Motor::getInstance().setMotion(speed, steering);
+    if (fabs(speed - last_speed) > 0.1f || fabs(steering - last_steering) > 0.1f) {
+        last_speed = speed;
+        last_steering = steering;
+        last_update_time = now;
+        already_stopped = false;
+        Motor::getInstance().setMotion(speed, steering);
+    } else {
+        // 没有变化：判断是否持续超过3秒未更新
+        if ((now - last_update_time) > 5000) {
+            if (((fabs(speed)>0.01f)&&(fabs(speed)!=MOTOR_MAX_SPEED)) ||
+                    ((fabs(steering)>0.01f)&&(fabs(steering)!=MOTOR_MAX_STEERING))) {
+                // 非0状态下卡住，判定为异常断开
+                if (!already_stopped) {
+                    ESP_LOGW(TAG, "maybe disconnected (values not updated for 5s), stop motor");
+                    Motor::getInstance().setMotion(0, 0);
+                    already_stopped = true;
+                }
+            }
         }
     }
 }
@@ -188,7 +202,7 @@ void controller_update_task(void *parameter)
                 controller_set_motor_status();
             }
         } else {
-            // Serial.println("not connected");
+            // ESP_LOGI(TAG, "not connected");
             // if (xboxController->getCountFailedConnection() > 2)
             // {
             //   ESP.restart();
