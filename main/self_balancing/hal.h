@@ -9,11 +9,6 @@
 #include "freertos/task.h"
 #include "esp_platform.h"
 
-typedef enum {
-    IMU_ENCODER_I2C_BUS = 0,
-    ENCODER_I2C_BUS,
-} I2C_BUS;
-
 namespace HAL
 {
     void Init();
@@ -28,7 +23,7 @@ namespace HAL
     float lowPassGyroX(float alpha=0.2);
     float lowPassGyroZ(float alpha=0.2);
 
-    i2c_master_bus_handle_t get_i2c_bus(I2C_BUS num);
+    i2c_master_bus_handle_t get_i2c_bus();
     extern SemaphoreHandle_t i2c_mutex;
 }
 #endif

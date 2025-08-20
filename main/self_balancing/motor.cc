@@ -7,8 +7,8 @@
 Motor::Motor()
     : motor_l(7), motor_r(7),
       driver_l(MO0_1, MO0_2, MO0_3), driver_r(MO1_1, MO1_2, MO1_3),
-      sensor_l(ENCODER_I2C_BUS),
-      sensor_r(IMU_ENCODER_I2C_BUS),
+      sensor_l(nullptr),
+      sensor_r(nullptr),
       settings("motor", true),
       pid_stb_(PID_STB.P, PID_STB.I, PID_STB.D, MOTOR_MAX_TORQUE),
       pid_vel_(PID_VEL.P, PID_VEL.I, PID_VEL.D, 100000, MOTOR_MAX_TORQUE),

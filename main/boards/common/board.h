@@ -10,6 +10,7 @@
 #include "led/led.h"
 #include "backlight.h"
 #include "camera.h"
+#include <driver/i2c_master.h>
 
 void* create_board();
 class AudioCodec;
@@ -52,6 +53,7 @@ public:
     virtual void SetPowerSaveMode(bool enabled) = 0;
     virtual std::string GetBoardJson() = 0;
     virtual std::string GetDeviceStatusJson() = 0;
+    virtual i2c_master_bus_handle_t GetI2cBus() { return nullptr; }
 };
 
 #define DECLARE_BOARD(BOARD_CLASS_NAME) \

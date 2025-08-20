@@ -2,8 +2,8 @@
 
 #define TAG     "AS5600Encoder"
 
-AS5600Encoder::AS5600Encoder(I2C_BUS i2c_bus_id)
-    : i2c_bus_id_(i2c_bus_id) {}
+AS5600Encoder::AS5600Encoder(i2c_master_bus_handle_t i2c_bus)
+    : i2c_bus_(i2c_bus) {}
 
 AS5600Encoder::~AS5600Encoder() {
     deinit();
@@ -17,7 +17,7 @@ void AS5600Encoder::init() {
             .scl_speed_hz = 400000,
         };
 
-        esp_err_t ret = i2c_master_bus_add_device(HAL::get_i2c_bus(i2c_bus_id_), &dev_cfg, &device_);
+        esp_err_t ret = i2c_master_bus_add_device(i2c_bus_, &dev_cfg, &device_);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to add device: %s", esp_err_to_name(ret));
         } else {
@@ -42,19 +42,13 @@ float AS5600Encoder::getSensorAngle() {
     uint8_t raw_angle_buf[2] = {0};
     uint8_t reg = ANGLE_REG;
 
-    if (xSemaphoreTake(HAL::i2c_mutex, pdMS_TO_TICKS(20)) == pdTRUE) {
-        esp_err_t ret = i2c_master_transmit_receive(device_, &reg, 1, raw_angle_buf, 2, 100);
-        xSemaphoreGive(HAL::i2c_mutex);
-
-        if (ESP_OK == ret) {
-            uint16_t raw_angle = (raw_angle_buf[0] << 8) | raw_angle_buf[1];
-            float angle = (raw_angle & 0x0FFF) / 4096.0f * (2 * PI);
-            return angle;
-        } else {
-            ESP_LOGE(TAG, "Failed to read angle data");
-        }
+    esp_err_t ret = i2c_master_transmit_receive(device_, &reg, 1, raw_angle_buf, 2, 100);
+    if (ESP_OK == ret) {
+        uint16_t raw_angle = (raw_angle_buf[0] << 8) | raw_angle_buf[1];
+        float angle = (raw_angle & 0x0FFF) / 4096.0f * (2 * PI);
+        return angle;
     } else {
-        ESP_LOGE(TAG, "Failed to take I2C mutex");
+        ESP_LOGE(TAG, "Failed to read angle data");
     }
 
     return 0.0f;

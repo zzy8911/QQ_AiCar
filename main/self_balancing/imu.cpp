@@ -3,6 +3,7 @@
 #include "mpu6050.h"
 #include "ICM42688.h"
 #include <memory>
+#include "board.h"
 
 #define TAG "HAL_IMU"
 
@@ -31,7 +32,7 @@ void HAL::imu_update(void)
 
 void HAL::imu_init(void)
 {
-    imu = std::make_unique<ICM42688>(HAL::get_i2c_bus(IMU_ENCODER_I2C_BUS), 0x68);
+    imu = std::make_unique<ICM42688>(Board::GetInstance().GetI2cBus(), 0x68);
     int status = imu->begin();
 	if (status < 0) {
         ESP_LOGE(TAG, "IMU initialization unsuccessful");
