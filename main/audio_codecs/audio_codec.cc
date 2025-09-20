@@ -65,3 +65,7 @@ void AudioCodec::EnableOutput(bool enable) {
     output_enabled_ = enable;
     ESP_LOGI(TAG, "Set output enable to %s", enable ? "true" : "false");
 }
+
+const char* AudioCodec::GetInputFormat() {
+    return "";
+}

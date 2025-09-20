@@ -75,8 +75,8 @@ private:
     void InitializeI2c() {
         i2c_master_bus_config_t i2c_bus_cfg = {
             .i2c_port = I2C_NUM_0,
-            .sda_io_num = IMU_ENCODER_SDA,
-            .scl_io_num = IMU_ENCODER_SCL,
+            .sda_io_num = IMU_SDA,
+            .scl_io_num = IMU_SCL,
             .clk_source = I2C_CLK_SRC_DEFAULT,
             .glitch_ignore_cnt = 7,
             .intr_priority = 0,
@@ -237,7 +237,7 @@ public:
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->RestoreBrightness();
         }
-        HAL::Init();
+        // HAL::Init();
     }
 
     virtual Led* GetLed() override {

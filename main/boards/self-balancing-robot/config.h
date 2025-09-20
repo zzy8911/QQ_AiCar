@@ -20,17 +20,17 @@
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0
 
 // Display
-#define DISPLAY_BACKLIGHT_PIN   GPIO_NUM_45
-#define DISPLAY_MOSI_PIN        GPIO_NUM_47
-#define DISPLAY_CLK_PIN         GPIO_NUM_21
-#define DISPLAY_DC_PIN          GPIO_NUM_13
-#define DISPLAY_RST_PIN         GPIO_NUM_48
-#define DISPLAY_CS_PIN          GPIO_NUM_14
+#define DISPLAY_BACKLIGHT_PIN   GPIO_NUM_11
+#define DISPLAY_DC_PIN          GPIO_NUM_12
+#define DISPLAY_CS_PIN          GPIO_NUM_13
+#define DISPLAY_CLK_PIN         GPIO_NUM_14
+#define DISPLAY_MOSI_PIN        GPIO_NUM_21
+#define DISPLAY_RST_PIN         GPIO_NUM_45
 
 /* Motor */
-#define MO0_1                   GPIO_NUM_12
-#define MO0_2                   GPIO_NUM_11
-#define MO0_3                   GPIO_NUM_10
+#define MO0_1                   GPIO_NUM_10
+#define MO0_2                   GPIO_NUM_9
+#define MO0_3                   GPIO_NUM_46
 #define MO1_1                   GPIO_NUM_40
 #define MO1_2                   GPIO_NUM_39
 #define MO1_3                   GPIO_NUM_38
@@ -40,8 +40,8 @@
 #define ENCODER_SCL             GPIO_NUM_2
 
 /* MPU */
-#define IMU_ENCODER_SDA         GPIO_NUM_46
-#define IMU_ENCODER_SCL         GPIO_NUM_9
+#define IMU_SDA                 GPIO_NUM_48
+#define IMU_SCL                 GPIO_NUM_47
 
 /*
  * Core1 (APP_CPU) 任务分配：

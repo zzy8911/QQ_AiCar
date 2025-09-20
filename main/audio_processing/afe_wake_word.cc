@@ -38,7 +38,7 @@ AfeWakeWord::~AfeWakeWord() {
 
 void AfeWakeWord::Initialize(AudioCodec* codec) {
     codec_ = codec;
-    int ref_num = codec_->input_reference() ? 1 : 0;
+    // int ref_num = codec_->input_reference() ? 1 : 0;
 
     srmodel_list_t *models = esp_srmodel_init("model");
     if (models == nullptr || models->num == -1) {
@@ -58,7 +58,7 @@ void AfeWakeWord::Initialize(AudioCodec* codec) {
             }
         }
     }
-
+    /*
     std::string input_format;
     for (int i = 0; i < codec_->input_channels() - ref_num; i++) {
         input_format.push_back('M');
@@ -66,9 +66,12 @@ void AfeWakeWord::Initialize(AudioCodec* codec) {
     for (int i = 0; i < ref_num; i++) {
         input_format.push_back('R');
     }
-    afe_config_t* afe_config = afe_config_init(input_format.c_str(), models, AFE_TYPE_SR, AFE_MODE_HIGH_PERF);
+    */
+    afe_config_t* afe_config = afe_config_init(codec_->GetInputFormat(), models, AFE_TYPE_SR, AFE_MODE_HIGH_PERF);
     afe_config->aec_init = codec_->input_reference();
     afe_config->aec_mode = AEC_MODE_SR_HIGH_PERF;
+    afe_config->vad_init = true;
+    afe_config->vad_mode = VAD_MODE_3;
     afe_config->afe_perferred_core = 1;
     afe_config->afe_perferred_priority = 1;
     afe_config->memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
