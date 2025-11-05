@@ -1,107 +1,66 @@
-#include "hal.h"
-#include "HAL_Def.h"
-#include "mpu6050.h"
-#include "ICM42688.h"
-#include <memory>
 #include "board.h"
+#include "BMI270.h"
+#include <memory>
+#include "filter.h"
+#include "imu.h"
 
-#define TAG "HAL_IMU"
+#define TAG "IMU"
 
-static std::unique_ptr<ICM42688> imu = nullptr;
-
-TaskHandle_t handleTaskIMU;
-void HAL::imu_update(void *pvParameters)
+Imu::Imu(i2c_master_bus_handle_t i2c_handle,
+         SemaphoreHandle_t i2c_semaphore,
+         FilterType type)
+    : bmi270_(i2c_handle, i2c_semaphore, 0x68)
+    , filter_(type)
 {
-    while (1) {
-        imu_update();
-
-        vTaskDelay(pdMS_TO_TICKS(5));
-    }
+    // 构造仅初始化成员，不做设备/滤波器初始化（放到 init()）
 }
 
-void HAL::imu_update(void)
+esp_err_t Imu::init()
 {
-    imu->getAGT();
-    // ESP_LOGI(TAG, "%f\t%f\t%f\t%f\t%f\t%f\t%f",
-    //                 imu->accX(), imu->accY(), imu->accZ(),
-    //                 imu->gyrX(), imu->gyrY(), imu->gyrZ(), imu->temp());
-
-    imu->filter();
-    // ESP_LOGI(TAG, "%f", imu_get_pitch());
-}
-
-void HAL::imu_init(void)
-{
-    imu = std::make_unique<ICM42688>(Board::GetInstance().GetI2cBus(), 0x68);
-    int status = imu->begin();
-	if (status < 0) {
-        ESP_LOGE(TAG, "IMU initialization unsuccessful");
-		ESP_LOGE(TAG, "Check IMU wiring or try cycling power");
-		ESP_LOGE(TAG, "Status: %d", status);
-		while (1) {}
+    // 初始化底层 BMI270
+    esp_err_t ret = bmi270_.init();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "BMI270 begin() failed: %d", ret);
+        return ret;
     }
 
-	// setting the accelerometer full scale range to +/-2G
-	imu->setAccelFS(ICM42688::gpm2);
-	// setting the gyroscope full scale range to +/-500 deg/s
-	imu->setGyroFS(ICM42688::dps500);
-
-	// set output data rate to 1k Hz
-	imu->setAccelODR(ICM42688::odr1k);
-	imu->setGyroODR(ICM42688::odr1k);
-
-	imu->setFilter(HAL::KALMAN);
-
-	// ESP_LOGI(TAG, "ax,ay,az,gx,gy,gz,temp_C");
-
-    /* Move it to motor task, because as5600 sensor and imu sensor use the same I2C bus. */
-    // esp_err_t ret = xTaskCreatePinnedToCore(
-    //     imu_update,
-    //     "IMUThread",
-    //     4096,
-    //     nullptr,
-    //     2,
-    //     &handleTaskIMU,
-    //     1);
-    // if (ret != pdPASS) {
-    //     ESP_LOGE(TAG, "start imu_run task failed.");
-    //     // return -1;
-    // }
+    ESP_LOGI(TAG, "Imu::init OK");
+    return ESP_OK;
 }
 
-float HAL::imu_get_pitch(void)
+void Imu::update()
 {
-    return imu->getPitch(); /* 0-180  -180 - 0 */
+    esp_err_t r = bmi270_.update();
+    if (r != ESP_OK) {
+        ESP_LOGW(TAG, "BMI270 update failed: %d", r);
+        return;
+    }
+
+    filter_.update(bmi270_.accX(), bmi270_.accY(), bmi270_.accZ(),
+                   bmi270_.gyrX(), bmi270_.gyrY(), bmi270_.gyrZ());
 }
 
-float HAL::lowPassGyroX(float alpha)
+float Imu::getPitch()
 {
-    return imu->lowPassGyroX(alpha);
+    return filter_.getPitch();
 }
 
-float HAL::lowPassGyroZ(float alpha)
+float Imu::getRoll()
 {
-    return imu->lowPassGyroZ(alpha);
+    return filter_.getRoll();
 }
 
-float HAL::imu_get_yaw(void)
+float Imu::getYaw()
 {
-    return imu->getYaw();
+    return filter_.getYaw();
 }
 
-/*
- * getGyroY = pitch
- * getGyroZ = yaw
- * 
- */
-float HAL::imu_get_gyro_z(void)
+float Imu::lowPassGyroX()
 {
-    // FIXME: 需要修改
-    return 0;
+    return filter_.lowPassGyroX();
 }
 
-float HAL::imu_get_abs_yaw(void)
+float Imu::lowPassGyroZ()
 {
-    // FIXME: 需要修改
-    return 0;
+    return filter_.lowPassGyroZ();
 }

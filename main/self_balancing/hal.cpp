@@ -15,8 +15,7 @@ i2c_master_bus_handle_t HAL::get_i2c_bus()
 void HAL::Init()
 {
     controller_init(DEFAULTU_BLE_ADDR);
-    ESP_LOGI(TAG, "init mpu...");
-    imu_init();
+
     ESP_LOGI(TAG, "init motor...");
     Motor::getInstance().init();
 }

@@ -8,6 +8,7 @@
 #include <esp_simplefoc.h>
 #include "gyro_pid.h"
 #include "as5600_encoder.h"
+#include "imu.h"
 
 struct PIDParams {
     float P;
@@ -106,6 +107,8 @@ private:
     LowPassFilter lpf_steering;
 
     BALANCE_STATUS balance_status_ = BALANCE_OFF;
+
+    Imu imu_;
 };
 
 #endif

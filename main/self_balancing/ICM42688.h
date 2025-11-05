@@ -11,7 +11,6 @@
 #include "freertos/task.h"
 #include "cordic.hpp"
 #include "kalman.h"
-#include "HAL_Def.h"
 
 class ICM42688 {
  public:
