@@ -237,7 +237,7 @@ public:
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->RestoreBrightness();
         }
-        // HAL::Init();
+        HAL::Init(i2c_bus_);
     }
 
     virtual Led* GetLed() override {

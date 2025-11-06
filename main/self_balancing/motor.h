@@ -8,6 +8,7 @@
 #include <esp_simplefoc.h>
 #include "gyro_pid.h"
 #include "as5600_encoder.h"
+#include <memory>
 #include "imu.h"
 
 struct PIDParams {
@@ -69,6 +70,10 @@ public:
     float getMidValue() {
         return mid_value_;
     }
+
+    void attachImu(std::shared_ptr<Imu> imu) {
+        imu_ = imu;
+    }
 private:
     Motor();
     void task();
@@ -108,7 +113,7 @@ private:
 
     BALANCE_STATUS balance_status_ = BALANCE_OFF;
 
-    Imu imu_;
+    std::shared_ptr<Imu> imu_;
 };
 
 #endif

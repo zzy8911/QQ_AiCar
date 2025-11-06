@@ -7,11 +7,11 @@
 
 class Imu {
 public:
-    Imu(i2c_master_bus_handle_t i2c_handle=Board::GetInstance().GetI2cBus(),
-        SemaphoreHandle_t i2c_semaphore=NULL,
+    Imu(i2c_master_bus_handle_t i2c_handle=nullptr,
+        SemaphoreHandle_t i2c_semaphore=nullptr,
         FilterType type=FilterType::KALMAN);
 
-    esp_err_t init();
+    esp_err_t init(i2c_master_bus_handle_t i2c_handle=nullptr);
     void update();
 
     float getPitch();

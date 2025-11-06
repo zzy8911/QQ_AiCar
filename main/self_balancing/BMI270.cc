@@ -13,8 +13,18 @@ BMI270::BMI270(i2c_master_bus_handle_t i2c_handle, SemaphoreHandle_t i2c_semapho
     memset(&sensor_data_, 0, sizeof(sensor_data_));
 }
 
-int BMI270::init() {
+int BMI270::init(i2c_master_bus_handle_t i2c_handle, SemaphoreHandle_t i2c_semaphore) {
     int8_t rslt;
+
+    if (i2c_handle)
+        i2c_handle_ = i2c_handle;
+    if (i2c_semaphore)
+        i2c_semaphore_ = i2c_semaphore;
+
+    if (i2c_handle_ == nullptr) {
+        ESP_LOGE(TAG, "I2C handle is null.");
+        return -1;
+    }
 
     // 初始化 I2C 接口
     bmi2_set_i2c_configuration(i2c_handle_, address_, i2c_semaphore_);
@@ -104,6 +114,9 @@ int BMI270::update() {
     gyr_x_ = lsbToDps(sensor_data_.gyr.x, 2000.0f, dev_.resolution);
     gyr_y_ = lsbToDps(sensor_data_.gyr.y, 2000.0f, dev_.resolution);
     gyr_z_ = lsbToDps(sensor_data_.gyr.z, 2000.0f, dev_.resolution);
+
+    // ESP_LOGI(TAG, "acc: %.2f, %.2f, %.2f m/s²; gyr: %.2f, %.2f, %.2f dps",
+    //          acc_x_, acc_y_, acc_z_, gyr_x_, gyr_y_, gyr_z_);
 
     return ESP_OK;
 }

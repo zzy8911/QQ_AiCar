@@ -85,11 +85,9 @@ static void initFOC(BLDCMotor &motor, float offset)
     }
 }
 
-int Motor::init(void)
+int Motor::init()
 {
     ESP_LOGI(TAG, "Motor starting...");
-
-    imu_.init();
 
     init_motor(&motor_l, &driver_l, &sensor_l);
     init_motor(&motor_r, &driver_r, &sensor_r);
@@ -210,7 +208,7 @@ int Motor::runBalanceTask()
     float speed = 0;
     static size_t count = 0;
 
-    float mpu_pitch = imu_.getPitch();
+    float mpu_pitch = imu_->getPitch();
     // ESP_LOGI(TAG, "mpu_pitch: %.2f, throttle_: %.2f, steering_: %.2f", mpu_pitch, throttle_, steering_);
 
     rc = checkBalanceStatus(mpu_pitch);
@@ -221,7 +219,7 @@ int Motor::runBalanceTask()
     }
 
     /* Parallel PID */
-    stb_adj_ = pid_stb_(mid_value_, mpu_pitch, imu_.lowPassGyroX());
+    stb_adj_ = pid_stb_(mid_value_, mpu_pitch, imu_->lowPassGyroX());
 
     /* every 4th loop, run speed and steering PID */
     if (count % 4 == 0) {
@@ -239,7 +237,7 @@ int Motor::runBalanceTask()
         speed_adj_ = pid_vel_(lpf_throttle(throttle_) - speed);
 
         // steering
-        steering_adj_ = pid_steering_(lpf_steering(steering_), 0.0f, imu_.lowPassGyroZ());
+        steering_adj_ = pid_steering_(lpf_steering(steering_), 0.0f, imu_->lowPassGyroZ());
     }
 
     motor_l.target = -(stb_adj_ + speed_adj_ + steering_adj_);
@@ -262,12 +260,12 @@ void Motor::task()
     while(1) {
         is_task_changed = false;
 
-        imu_.update(); // 更新IMU数据
+        imu_->update(); // 更新IMU数据
 
         motor_l.loopFOC();
         motor_r.loopFOC();
 
-        taskModeUpdate(imu_.getPitch(), motor_task, is_task_changed);
+        taskModeUpdate(imu_->getPitch(), motor_task, is_task_changed);
         switch(motor_task) {
         case BOT_RUNNING_MODE:
             motor_l.move(0);
@@ -321,7 +319,7 @@ void Motor::move(direction_t dir, int distance_cm) {
 
 void Motor::rotate(int angle) {
     constexpr int ROTATE_LOOP_DELAY_MS = 10;
-    float target_yaw = imu_.getYaw() + angle;
+    float target_yaw = imu_->getYaw() + angle;
     int elapsed = 0;
 
     while ((elapsed+=ROTATE_LOOP_DELAY_MS) < 5000) { // 5秒超时
@@ -332,7 +330,7 @@ void Motor::rotate(int angle) {
         }
         vTaskDelay(pdMS_TO_TICKS(ROTATE_LOOP_DELAY_MS));
 
-        if (fabs(imu_.getYaw() - target_yaw) < 2.0f) {
+        if (fabs(imu_->getYaw() - target_yaw) < 2.0f) {
             break;
         }
     }

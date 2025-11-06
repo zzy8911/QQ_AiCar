@@ -7,15 +7,19 @@
 
 #define TAG "HAL"
 
-i2c_master_bus_handle_t HAL::get_i2c_bus()
-{
-    return Board::GetInstance().GetI2cBus();
-}
-
-void HAL::Init()
+void HAL::Init(i2c_master_bus_handle_t i2c_bus)
 {
     controller_init(DEFAULTU_BLE_ADDR);
 
+    auto imu = std::make_shared<Imu>(
+        i2c_bus,
+        nullptr,
+        FilterType::KALMAN
+    );
+    imu->init();
+
     ESP_LOGI(TAG, "init motor...");
-    Motor::getInstance().init();
+    auto& motor = Motor::getInstance();
+    motor.attachImu(imu);
+    motor.init();
 }

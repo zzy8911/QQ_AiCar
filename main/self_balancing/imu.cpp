@@ -15,10 +15,10 @@ Imu::Imu(i2c_master_bus_handle_t i2c_handle,
     // 构造仅初始化成员，不做设备/滤波器初始化（放到 init()）
 }
 
-esp_err_t Imu::init()
+esp_err_t Imu::init(i2c_master_bus_handle_t i2c_handle)
 {
     // 初始化底层 BMI270
-    esp_err_t ret = bmi270_.init();
+    esp_err_t ret = bmi270_.init(i2c_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "BMI270 begin() failed: %d", ret);
         return ret;

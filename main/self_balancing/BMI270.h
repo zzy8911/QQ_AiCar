@@ -10,8 +10,8 @@
 
 class BMI270 {
 public:
-    BMI270(i2c_master_bus_handle_t i2c_handle, SemaphoreHandle_t i2c_semaphore=NULL, uint8_t address=0x68);
-    int init();
+    BMI270(i2c_master_bus_handle_t i2c_handle=nullptr, SemaphoreHandle_t i2c_semaphore=nullptr, uint8_t address=0x68);
+    int init(i2c_master_bus_handle_t i2c_handle=nullptr, SemaphoreHandle_t i2c_semaphore=nullptr);
     int update();
 
     float accX() const { return acc_x_; }
