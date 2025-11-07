@@ -74,8 +74,6 @@ dependencies:
 
   h2zero/esp-nimble-cpp: ^2.3.1
 
-  espressif/esp_simplefoc: ^1.2.1
-
   ## Required IDF version
   idf:
     version: '>=5.4.0'

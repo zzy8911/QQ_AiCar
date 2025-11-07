@@ -36,8 +36,16 @@
 #define MO1_3                   GPIO_NUM_38
 
 // 霍尔传感器
-#define ENCODER_SDA             GPIO_NUM_1
-#define ENCODER_SCL             GPIO_NUM_2
+#define ENCODER_CS0             GPIO_NUM_1
+#define ENCODER_CS1             GPIO_NUM_2
+#define ENCODER_SCK             GPIO_NUM_42
+#define ENCODER_MISO            GPIO_NUM_41
+
+// Current Sense
+#define CS0_PHASE_A             GPIO_NUM_4
+#define CS0_PHASE_B             GPIO_NUM_5
+#define CS1_PHASE_A             GPIO_NUM_6
+#define CS1_PHASE_B             GPIO_NUM_7
 
 /* MPU */
 #define IMU_SDA                 GPIO_NUM_48

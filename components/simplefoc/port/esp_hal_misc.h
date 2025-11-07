@@ -5,6 +5,12 @@
  */
 #pragma once
 
+#include "esp_platform.h"
+#include "esp_hal_misc.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_timer.h"
+
 #ifdef __cplusplus
 extern "C"
 {

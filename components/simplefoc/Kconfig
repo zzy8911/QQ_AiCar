@@ -1,0 +1,18 @@
+menu "SimpleFOC"
+
+    choice SIMPLEFOC_ADC_MODE
+        prompt "ADC Driver Mode"
+        default SIMPLEFOC_ADC_MODE_ONESHOT
+
+    config SIMPLEFOC_ADC_MODE_LEGACY
+        bool "Legacy ADC mode (manual register, SENS_SAR)"
+
+    config SIMPLEFOC_ADC_MODE_ONESHOT
+        bool "Oneshot ADC mode (ESP-IDF ADC oneshot driver)"
+
+    config SIMPLEFOC_ADC_MODE_CONTINUOUS
+        bool "Continuous DMA ADC mode (ESP-IDF ADC continuous driver)"
+
+    endchoice
+
+endmenu

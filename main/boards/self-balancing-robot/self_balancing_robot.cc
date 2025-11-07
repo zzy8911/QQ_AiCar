@@ -89,7 +89,17 @@ private:
     }
 
     void InitializeSpi() {
-        spi_bus_config_t buscfg = {};
+        // init encoder spi bus
+        spi_bus_config_t buscfg = {
+            .mosi_io_num = -1,
+            .miso_io_num = ENCODER_MISO,
+            .sclk_io_num = ENCODER_SCK,
+            .quadwp_io_num = -1,
+            .quadhd_io_num = -1,
+            .max_transfer_sz = 1000,
+        };
+        spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
+        // init display spi bus
         buscfg.mosi_io_num = DISPLAY_MOSI_PIN;
         buscfg.miso_io_num = GPIO_NUM_NC;
         buscfg.sclk_io_num = DISPLAY_CLK_PIN;

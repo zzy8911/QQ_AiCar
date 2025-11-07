@@ -1,5 +1,7 @@
 #include "foc_utils.h"
 
+#if 1
+/* It will reduce 4us than IQmath */
 // int array instead of float array
 // 4x200 points per 360 deg
 // 2x storage save (int 2Byte float 4 Byte )
@@ -58,16 +60,54 @@ float _electricalAngle(float shaft_angle, int pole_pairs) {
 // https://reprap.org/forum/read.php?147,219210
 // https://en.wikipedia.org/wiki/Fast_inverse_square_root
 float _sqrtApprox(float number) {//low in fat
-  long i;
-  float y;
+  union {
+    float f;
+    long i;
+  } conv;
   // float x;
   // const float f = 1.5F; // better precision
 
   // x = number * 0.5F;
-  y = number;
-  i = * ( long * ) &y;
-  i = 0x5f375a86 - ( i >> 1 );
-  y = * ( float * ) &i;
+  conv.f = number;
+  conv.i = 0x5f375a86 - ( conv.i >> 1 );
   // y = y * ( f - ( x * y * y ) ); // better precision
-  return number * y;
+  return number * conv.f;
 }
+#else
+#include <math.h>
+#include "foc_utils.h"
+#include "soc/soc_caps.h"
+#include "IQmathLib.h"
+
+float _sin(float a)
+{
+    _iq iq_radians = _IQ(a);
+    _iq result = _IQsin(iq_radians);
+    return _IQtoF(result);
+}
+
+float _cos(float a)
+{
+    _iq iq_radians = _IQ(a);
+    _iq result = _IQcos(iq_radians);
+    return _IQtoF(result);
+}
+
+float _normalizeAngle(float angle)
+{
+    float a = fmod(angle, _2PI);
+    return a >= 0 ? a : (a + _2PI);
+}
+
+float _electricalAngle(float shaft_angle, int pole_pairs)
+{
+    return (shaft_angle * pole_pairs);
+}
+
+float _sqrtApprox(float number)
+{
+    _iq iq_x = _IQ(number);
+    _iq iq_result = _IQsqrt(iq_x);
+    return _IQtoF(iq_result);
+}
+#endif

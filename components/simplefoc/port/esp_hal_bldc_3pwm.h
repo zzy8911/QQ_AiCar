@@ -7,7 +7,7 @@
 #pragma once
 
 #include <vector>
-#include "BLDCDriver.h"
+#include "../common/base_classes/BLDCDriver.h"
 #include "foc_utils.h"
 #include "defaults.h"
 // #include "drivers/hardware_api.h"

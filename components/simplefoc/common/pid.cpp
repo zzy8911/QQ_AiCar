@@ -1,53 +1,64 @@
 #include "pid.h"
-#include "esp_timer.h"
-
-#define _constrain(amt,low,high) ((amt)<(low)?(low):((amt)>(high)?(high):(amt)))
-
 
 PIDController::PIDController(float P, float I, float D, float ramp, float limit)
     : P(P)
     , I(I)
     , D(D)
-    , output_ramp(ramp)    // PID控制器加速度限幅
-    , limit(limit)         // PID控制器输出限幅
+    , output_ramp(ramp)    // output derivative limit [volts/second]
+    , limit(limit)         // output supply limit     [volts]
     , error_prev(0.0f)
     , output_prev(0.0f)
     , integral_prev(0.0f)
 {
-    timestamp_prev = esp_timer_get_time();
+    timestamp_prev = _micros();
 }
 
-// PID 控制器函数
-float PIDController::operator() (float error) {
-    // 计算两次循环中间的间隔时间
-    unsigned long timestamp_now = esp_timer_get_time();
+// PID controller function
+float PIDController::operator() (float error){
+    // calculate the time from the last call
+    unsigned long timestamp_now = _micros();
     float Ts = (timestamp_now - timestamp_prev) * 1e-6f;
+    // quick fix for strange cases (micros overflow)
     if(Ts <= 0 || Ts > 0.5f) Ts = 1e-3f;
-    
-    // P环
+
+    // u(s) = (P + I/s + Ds)e(s)
+    // Discrete implementations
+    // proportional part
+    // u_p  = P *e(k)
     float proportional = P * error;
-    // Tustin 散点积分（I环）
+    // Tustin transform of the integral part
+    // u_ik = u_ik_1  + I*Ts/2*(ek + ek_1)
     float integral = integral_prev + I*Ts*0.5f*(error + error_prev);
+    // antiwindup - limit the output
     integral = _constrain(integral, -limit, limit);
-    // D环（微分环节）
+    // Discrete derivation
+    // u_dk = D(ek - ek_1)/Ts
     float derivative = D*(error - error_prev)/Ts;
 
-    // 将P,I,D三环的计算值加起来
+    // sum all the components
     float output = proportional + integral + derivative;
+    // antiwindup - limit the output variable
     output = _constrain(output, -limit, limit);
 
-    if (output_ramp > 0) {
-        // 对PID的变化速率进行限制
+    // if output ramp defined
+    if(output_ramp > 0){
+        // limit the acceleration by ramping the output
         float output_rate = (output - output_prev)/Ts;
         if (output_rate > output_ramp)
             output = output_prev + output_ramp*Ts;
         else if (output_rate < -output_ramp)
             output = output_prev - output_ramp*Ts;
     }
-    // 保存值（为了下一次循环）
+    // saving for the next pass
     integral_prev = integral;
     output_prev = output;
     error_prev = error;
     timestamp_prev = timestamp_now;
     return output;
+}
+
+void PIDController::reset(){
+    integral_prev = 0.0f;
+    output_prev = 0.0f;
+    error_prev = 0.0f;
 }

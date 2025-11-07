@@ -6,11 +6,13 @@
 
 #pragma once
 
+#include "../common/foc_utils.h"
+#include "../common/base_classes/Sensor.h"
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
 #include "i2c_bus.h"
 
-class MT6701 {
+class MT6701 : public Sensor {
 public:
     /**
      * @brief Construct a new mt6701 object
@@ -57,28 +59,18 @@ public:
      */
     float getSensorAngle();
 
-    void update();
-    float getAngle();
-    float getMechanicalAngle();
-    float getVelocity();
-
 private:
-    i2c_bus_handle_t i2c_bus_;
-    i2c_bus_device_handle_t i2c_device_;
-    i2c_port_t i2c_port_ = I2C_NUM_MAX;
-
-    spi_host_device_t spi_host_ = SPI_HOST_MAX;
-    spi_device_handle_t spi_device_;
-    gpio_num_t sclk_io_;
-    gpio_num_t miso_io_;
-    gpio_num_t mosi_io_;
-    gpio_num_t cs_io_;
-
-    bool is_installed_;
-    int full_rotations_ = 0;
-    float angle_prev_ = 0;
-    int vel_full_rotations_ = 0;
-    float vel_angle_prev_ = 0;
-    int64_t angle_prev_ts_ = 0;
-    int64_t vel_angle_prev_ts_ = 0;
+    spi_host_device_t _spi_host = SPI_HOST_MAX;
+    spi_device_handle_t _spi_device;
+    i2c_bus_handle_t _i2c_bus;
+    i2c_bus_device_handle_t _i2c_device;
+    i2c_port_t _i2c_port = I2C_NUM_MAX;
+    gpio_num_t _sclk_io;
+    gpio_num_t _miso_io;
+    gpio_num_t _mosi_io;
+    gpio_num_t _cs_io;
+    bool _is_installed;
+    spi_transaction_t _trans = {};        // 专用于排队/DMA的事务结构体
+    bool _is_reading_started = false;     // 标记是否已经启动过 DMA 预读
+    float _last_angle = 0.0f;             // 存储上次成功读取的角度
 };
