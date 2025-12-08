@@ -111,9 +111,9 @@ int BMI270::update() {
     acc_y_ = lsbToMps2(sensor_data_.acc.y, 2.0f, dev_.resolution);
     acc_z_ = lsbToMps2(sensor_data_.acc.z, 2.0f, dev_.resolution);
 
-    gyr_x_ = lsbToDps(sensor_data_.gyr.x, 2000.0f, dev_.resolution);
-    gyr_y_ = lsbToDps(sensor_data_.gyr.y, 2000.0f, dev_.resolution);
-    gyr_z_ = lsbToDps(sensor_data_.gyr.z, 2000.0f, dev_.resolution);
+    gyr_x_ = lsbToDps(sensor_data_.gyr.x, 500.0f, dev_.resolution);
+    gyr_y_ = lsbToDps(sensor_data_.gyr.y, 500.0f, dev_.resolution);
+    gyr_z_ = lsbToDps(sensor_data_.gyr.z, 500.0f, dev_.resolution);
 
     // ESP_LOGI(TAG, "acc: %.2f, %.2f, %.2f m/s²; gyr: %.2f, %.2f, %.2f dps",
     //          acc_x_, acc_y_, acc_z_, gyr_x_, gyr_y_, gyr_z_);

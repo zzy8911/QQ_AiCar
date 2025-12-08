@@ -10,6 +10,11 @@ enum class FilterType {
     KALMAN
 };
 
+enum class CoordinateSystem {
+    X_FORWARD, // 俯仰的时候X轴数值变化，也就意味着沿着6轴的X轴加速度方向前进后退
+    Y_FORWARD  // 俯仰的时候Y轴数值变化
+};
+
 struct Attitude {
     float pitch;
     float roll;
@@ -18,7 +23,7 @@ struct Attitude {
 
 class Filter {
 public:
-    Filter(FilterType type = FilterType::NONE);
+    Filter(FilterType type = FilterType::NONE, CoordinateSystem coord_sys = CoordinateSystem::X_FORWARD);
     esp_err_t update(float accX, float accY, float accZ, float gyrX, float gyrY, float gyrZ);
     void reset();
 
@@ -26,13 +31,14 @@ public:
 	float getRoll() { return angle_.roll; };
 	float getYaw() { return angle_.yaw; };
 
-    float lowPassGyroX() { return gyroX_fv_; };
+    float lowPassGyroPitch() { return gyroPitch_fv_; };
     float lowPassGyroZ() { return gyroZ_fv_; };
 
 private:
     float lowPass(float input, float& output, float alpha = 0.2f);
 
     FilterType type_;
+    CoordinateSystem coord_sys_;
     Kalman kalman_;
     Attitude angle_{0.0f, 0.0f, 0.0f};
 
@@ -42,7 +48,7 @@ private:
     float pitch_gyro_ = 0.0f;
     long timer_ = 0;
 
-    float gyroX_fv_ = 0.0f;
+    float gyroPitch_fv_ = 0.0f;
     float gyroZ_fv_ = 0.0f;
 
     static constexpr float ALPHA = 0.93f;

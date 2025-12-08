@@ -5,9 +5,8 @@
 #include "boards/self-balancing-robot/config.h"
 #include "driver/spi_master.h"
 #include "settings.h"
-#include <esp_simplefoc.h>
+#include <SimpleFOC.h>
 #include "gyro_pid.h"
-#include "as5600_encoder.h"
 #include <memory>
 #include "imu.h"
 
@@ -16,26 +15,21 @@ struct PIDParams {
     float I;
     float D;
 };
-inline constexpr PIDParams PID_STB {0.01572f, 0.0f, -0.0045f};
+inline constexpr PIDParams PID_STB {0.01f, 0.0f, 0.003};
 inline constexpr PIDParams PID_VEL {0.061f, 0.0061f, 0.0f};
 
 constexpr float MOTOR_MAX_TORQUE = 45.0f;
 constexpr int MOTOR_MAX_SPEED = 20;
 constexpr int MOTOR_MAX_STEERING = 50;
 
-constexpr int BALANCE_STOP_PITCH_OFFSET = 40;
-
+constexpr int BALANCE_PITCH_THRESHOLD = 60;
 constexpr int BALANCE_WAITTING_TIME = 1000;
 constexpr int BALANCE_ENABLE_STEERING_I_TIME = 3000;
 
-enum BALANCE_STATUS {
-    BALANCE_OFF = 0,
-    BALANCE_WATTING,
-    BALANCE_RUNNING,
-};
-enum BOT_RUNNING_MODE {
-    BOT_RUNNING_MODE = 0,
-    BOT_RUNNING_BALANCE,
+enum BOT_STATUS {
+    BOT_FALL = 0,
+    BOT_WAIT_BALANCE = 1,
+    BOT_BALANCE = 2,
 };
 
 constexpr float WHEEL_RADIUS_M = 0.0325f;  // 65mm 轮子
@@ -78,7 +72,7 @@ private:
     Motor();
     void task();
     void resetAllPid();
-    int checkBalanceStatus(float mpu_pitch);
+    void checkBalanceStatus(float mpu_pitch, BOT_STATUS &bot_state);
     int runBalanceTask();
 
     // Motor objects
@@ -87,8 +81,11 @@ private:
     BLDCDriver3PWM driver_l;
     BLDCDriver3PWM driver_r;
     // Encoder sensors
-    AS5600Encoder sensor_l;
-    AS5600Encoder sensor_r;
+    MT6701 sensor_l;
+    MT6701 sensor_r;
+    // current sense
+    InlineCurrentSense cs_l;
+    InlineCurrentSense cs_r;
 
     StackType_t* motor_task_stack_ = nullptr;
     StaticTask_t motor_task_tcb_;
@@ -111,9 +108,14 @@ private:
     LowPassFilter lpf_throttle;
     LowPassFilter lpf_steering;
 
-    BALANCE_STATUS balance_status_ = BALANCE_OFF;
-
     std::shared_ptr<Imu> imu_;
+
+    // timer for FOC loop
+    esp_timer_handle_t foc_timer_;
+    static constexpr uint32_t FOC_TIMER_PERIOD_US = 500; // 选用2kHz控制频率, 4Khz对系统实时性要求比较高，比较吃力了
+    static void IRAM_ATTR foc_timer_callback(void* arg);
+    SemaphoreHandle_t foc_sem_ = nullptr;
+    int start_foc_timer();
 };
 
 #endif

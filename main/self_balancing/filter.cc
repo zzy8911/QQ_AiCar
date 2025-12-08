@@ -2,7 +2,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 
-Filter::Filter(FilterType type) : type_(type) {}
+Filter::Filter(FilterType type, CoordinateSystem coord_sys) : type_(type), coord_sys_(coord_sys){}
 
 void Filter::reset() {
     kalman_.setAngle(pitch_acc_);
@@ -11,8 +11,15 @@ void Filter::reset() {
 
 esp_err_t Filter::update(float accX, float accY, float accZ, float gyrX, float gyrY, float gyrZ) {
     long now = esp_timer_get_time() / 1000; // ms
+    float gyro_pitch = 0;
 
-    pitch_acc_ = atan2(accY, accZ + fabsf(accX)) * RAD_TO_DEG;
+    if (coord_sys_ == CoordinateSystem::X_FORWARD) {
+        pitch_acc_ = atan2(accX, accZ + fabsf(accY)) * RAD_TO_DEG;
+        gyro_pitch = gyrY;
+    } else if (coord_sys_ == CoordinateSystem::Y_FORWARD) {
+        pitch_acc_ = atan2(accY, accZ + fabsf(accX)) * RAD_TO_DEG;
+        gyro_pitch = gyrX;
+    }
 
     if (timer_ == 0) {
         // 第一次调用：仅初始化，不滤波
@@ -30,15 +37,15 @@ esp_err_t Filter::update(float accX, float accY, float accZ, float gyrX, float g
 
         switch (type_) {
             case FilterType::COMPLEMENTARY:
-                pitch_comp_ = ALPHA * (pitch_comp_ + gyrX * dt) + (1 - ALPHA) * pitch_acc_;
+                pitch_comp_ = ALPHA * (pitch_comp_ + gyro_pitch * dt) + (1 - ALPHA) * pitch_acc_;
                 angle_.pitch = pitch_comp_;
                 break;
             case FilterType::KALMAN:
-                pitch_kalman_ = kalman_.getAngle(pitch_acc_, gyrX, dt);
+                pitch_kalman_ = kalman_.getAngle(pitch_acc_, gyro_pitch, dt);
                 angle_.pitch = pitch_kalman_;
                 break;
             case FilterType::GYRO_ONLY:
-                pitch_gyro_ += gyrX * dt;
+                pitch_gyro_ += gyro_pitch * dt;
                 angle_.pitch = pitch_gyro_;
                 break;
             default:
@@ -46,7 +53,7 @@ esp_err_t Filter::update(float accX, float accY, float accZ, float gyrX, float g
                 break;
         }
 
-        lowPass(gyrX, gyroX_fv_);
+        lowPass(gyro_pitch, gyroPitch_fv_);
         angle_.yaw += lowPass(gyrZ, gyroZ_fv_) * dt;
     }
 

@@ -8,9 +8,9 @@
 
 Imu::Imu(i2c_master_bus_handle_t i2c_handle,
          SemaphoreHandle_t i2c_semaphore,
-         FilterType type)
+         FilterType type, CoordinateSystem coord_sys)
     : bmi270_(i2c_handle, i2c_semaphore, 0x68)
-    , filter_(type)
+    , filter_(type, coord_sys)
 {
     // 构造仅初始化成员，不做设备/滤波器初始化（放到 init()）
 }
@@ -55,9 +55,9 @@ float Imu::getYaw()
     return filter_.getYaw();
 }
 
-float Imu::lowPassGyroX()
+float Imu::lowPassGyroPitch()
 {
-    return filter_.lowPassGyroX();
+    return filter_.lowPassGyroPitch();
 }
 
 float Imu::lowPassGyroZ()

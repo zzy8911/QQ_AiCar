@@ -7,8 +7,10 @@
 Motor::Motor()
     : motor_l(7), motor_r(7),
       driver_l(MO0_1, MO0_2, MO0_3), driver_r(MO1_1, MO1_2, MO1_3),
-      sensor_l(nullptr),
-      sensor_r(nullptr),
+      sensor_l(SPI2_HOST, ENCODER_SCK, ENCODER_MISO, GPIO_NUM_NC, ENCODER_CS0),
+      sensor_r(SPI2_HOST, ENCODER_SCK, ENCODER_MISO, GPIO_NUM_NC, ENCODER_CS1),
+      cs_l(0.005, 50.0, 4, 5, NOT_SET),
+      cs_r(0.005, 50.0, 6, 7, NOT_SET),
       settings("motor", true),
       pid_stb_(PID_STB.P, PID_STB.I, PID_STB.D, MOTOR_MAX_TORQUE),
       pid_vel_(PID_VEL.P, PID_VEL.I, PID_VEL.D, 100000, MOTOR_MAX_TORQUE),
@@ -31,45 +33,52 @@ Motor::~Motor() {
 }
 
 template <typename SensorType>
-static void init_motor(BLDCMotor *motor, BLDCDriver3PWM *driver, SensorType *sensor)
+static void init_motor(BLDCMotor *motor, BLDCDriver3PWM *driver, SensorType *sensor, InlineCurrentSense *cs=nullptr)
 {
+    // sensor参数设置
     sensor->init();
-    //连接motor对象与传感器对象
     motor->linkSensor(sensor);
-    // PWM 频率 [Hz]
+
+    // driver参数设置
     driver->pwm_frequency = 20000;
-    //供电电压设置 [V]
-    driver->voltage_power_supply = 8;
+    driver->voltage_power_supply = 7.4;
+    driver->voltage_limit = 7.4;
     driver->init();
     motor->linkDriver(driver);
-    //FOC模型选择
-    motor->foc_modulation = FOCModulationType::SpaceVectorPWM;
-    // motor.modulation_centered = 1.0;
-    //运动控制模式设置
-    motor->torque_controller = TorqueControlType::voltage;
-    motor->controller = MotionControlType::torque;
 
-    //速度低通滤波时间常数
-    motor->LPF_velocity.Tf = 0.02f;
-    motor->PID_velocity.output_ramp = 1000;
-    // motor->PID_velocity.limit = MOTOR_MAX_SPEED; // rad/s
+    if (cs == nullptr) {
+        //FOC模型选择
+        motor->foc_modulation = FOCModulationType::SpaceVectorPWM;
+        motor->torque_controller = TorqueControlType::voltage;
+        motor->controller = MotionControlType::torque;
+
+        //速度低通滤波时间常数
+        motor->LPF_velocity.Tf = 0.02f;
+        motor->PID_velocity.output_ramp = 1000;
+    } else {
+        // current sense参数设置
+        cs->init();
+        cs->gain_a *= -1;
+        cs->gain_b *= -1;
+        cs->skip_align = true;
+        motor->linkCurrentSense(cs);
+        // FOC模型选择
+        motor->torque_controller = TorqueControlType::foc_current;
+        motor->controller = MotionControlType::torque;
+        // PID参数设置
+        motor->PID_current_q.P = 2;
+        motor->PID_current_q.I = 0;
+        motor->PID_current_d.P = 2;
+        motor->PID_current_d.I = 0;
+        motor->LPF_current_q.Tf = 0.002;
+        motor->LPF_current_d.Tf = 0.002;
+    }
+
     //最大电机限制电机
-    motor->voltage_limit = 8;
+    motor->voltage_limit = 7.4;
 
-    //设置最大速度限制
-    // motor->velocity_limit = MOTOR_MAX_SPEED;
-
-#ifdef XK_WIRELESS_PARAMETER
-    motor->useMonitoring(HAL::get_wl_tuning());
-#else
-    // Serial.begin(115200);
-    // motor->monitor_variables = _MON_TARGET | _MON_VEL | _MON_ANGLE;
-    // motor->useMonitoring(Serial);
-    // motor->monitor_downsample = 100;  // disable monitor at first - optional
-#endif
     //初始化电机
     motor->init();
-    // motor->initFOC();
 }
 
 static void initFOC(BLDCMotor &motor, float offset)
@@ -77,12 +86,31 @@ static void initFOC(BLDCMotor &motor, float offset)
     if (offset > 0) {
         ESP_LOGI(TAG, "has a offset value %.2f.", offset);
         Direction foc_direction = Direction::CW;
-        motor.initFOC(offset, foc_direction);
+        motor.initFOC();
     } else {
         if (motor.initFOC()) {
             ESP_LOGI(TAG, "motor zero electric angle: %.2f", motor.zero_electric_angle);
         }
     }
+}
+
+void Motor::foc_timer_callback(void* arg) {
+    Motor* self = static_cast<Motor*>(arg);
+    xSemaphoreGive(self->foc_sem_);
+}
+
+int Motor::start_foc_timer()
+{
+    // 创建 esp_timer，并传入 this 指针
+    const esp_timer_create_args_t timer_args = {
+        .callback = &Motor::foc_timer_callback,  // 静态回调
+        .arg = this,
+        .name = "foc_timer"
+    };
+    ESP_ERROR_CHECK(esp_timer_create(&timer_args, &foc_timer_));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(foc_timer_, FOC_TIMER_PERIOD_US));
+
+    return 0;
 }
 
 int Motor::init()
@@ -111,6 +139,12 @@ int Motor::init()
 
     ESP_LOGI(TAG, "Motor ready.");
 
+    foc_sem_ = xSemaphoreCreateBinary();
+    if (foc_sem_ == nullptr) {
+        ESP_LOGE(TAG, "FOC semaphore create failed.");
+        return -1;
+    }
+
     motor_task_stack_ = (StackType_t*) heap_caps_malloc(4096 * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
     if (motor_task_handle_ == nullptr) {
         motor_task_handle_ = xTaskCreateStaticPinnedToCore([](void* arg) {
@@ -121,7 +155,7 @@ int Motor::init()
             "MotorThread",
             4096,
             this,
-            10,
+            20,
             motor_task_stack_,
             &motor_task_tcb_,
             1); // Motor: CORE 1
@@ -131,37 +165,44 @@ int Motor::init()
         }
     }
 
+    start_foc_timer();
+
     return 0;
 }
 
-static int taskModeUpdate(int mpu_pitch, int &mode, bool &is_changed)
+void Motor::checkBalanceStatus(float pitch, BOT_STATUS &bot_state)
 {
-    // ESP_LOGI(TAG, "pitch: %d", mpu_pitch);
-    static int last_mode = BOT_RUNNING_MODE;
-    static unsigned long last_change_time = 0;
-    static bool is_timing = false;
-    int mode_tmp = BOT_RUNNING_MODE;
+    static unsigned long wait_start_ts = 0;
+    switch (bot_state) {
+    case BOT_FALL:
+        // 进入可平衡区，pitch 在阈值范围内
+        if (fabs(pitch) < BALANCE_PITCH_THRESHOLD) {
+            bot_state = BOT_WAIT_BALANCE;
+            wait_start_ts = millis();
+        }
+        break;
 
-    if (abs(mpu_pitch) < 60) {
-        mode_tmp = BOT_RUNNING_BALANCE;
-    }
+    case BOT_WAIT_BALANCE:
+        if (fabs(pitch) >= BALANCE_PITCH_THRESHOLD) {
+            bot_state = BOT_FALL; // 又掉出范围
+            ESP_LOGI(TAG, "pitch: %f, BOT_FALL", pitch);
+        } else if (millis() - wait_start_ts >= BALANCE_WAITTING_TIME) {
+            bot_state = BOT_BALANCE; // 等待时间到了，进入平衡
+            resetAllPid();
+            ESP_LOGI(TAG, "BOT_BALANCE");
+        }
+        break;
 
-    if (mode_tmp != mode && !is_timing) {
-        last_change_time = millis(); // 记录状态变化的时间
-        is_timing = true;
+    case BOT_BALANCE:
+        if (fabs(pitch) >= BALANCE_PITCH_THRESHOLD) {
+            bot_state = BOT_FALL; // 倒了，重新开始
+            ESP_LOGI(TAG, "pitch: %f, BOT_FALL", pitch);
+        }
+        break;
+    default:
+        bot_state = BOT_FALL;
+        break;
     }
-    if (mode_tmp == mode) {
-        is_timing = false;
-    }
-
-    if (is_timing && millis() - last_change_time >= 1000) {
-        mode = mode_tmp; // 更新模式
-        is_changed = true; // 标记状态变化
-        ESP_LOGE(TAG, "pitch: %d mode from %d change to %d", mpu_pitch, last_mode, mode);
-        last_mode = mode; // 更新上一次模式
-    }
-    
-    return 0;
 }
 
 void Motor::resetAllPid()
@@ -169,35 +210,6 @@ void Motor::resetAllPid()
     pid_stb_.reset();
     pid_vel_.reset();
     pid_steering_.reset();
-}
-
-int Motor::checkBalanceStatus(float mpu_pitch)
-{
-    static unsigned long start_wait = 0;
-    
-    if (abs(mpu_pitch - mid_value_) > BALANCE_STOP_PITCH_OFFSET) {
-        balance_status_ = BALANCE_OFF;
-        return -1;
-    }
-
-    if (balance_status_ == BALANCE_RUNNING) {
-        return 0;
-    }
-
-    if (balance_status_ == BALANCE_OFF) {
-        balance_status_ = BALANCE_WATTING;
-        start_wait = millis();
-        return -1;
-    }
-
-    if (balance_status_ == BALANCE_WATTING) {
-        if (millis() < start_wait + BALANCE_WAITTING_TIME) {
-            return -1;
-        }
-    }
-    resetAllPid();
-    balance_status_ = BALANCE_RUNNING;
-    return 0;
 }
 
 int Motor::runBalanceTask()
@@ -209,79 +221,59 @@ int Motor::runBalanceTask()
     static size_t count = 0;
 
     float mpu_pitch = imu_->getPitch();
-    // ESP_LOGI(TAG, "mpu_pitch: %.2f, throttle_: %.2f, steering_: %.2f", mpu_pitch, throttle_, steering_);
-
-    rc = checkBalanceStatus(mpu_pitch);
-    if (rc) {
-        motor_l.target = 0;
-        motor_r.target = 0;
-        goto out;
-    }
 
     /* Parallel PID */
-    stb_adj_ = pid_stb_(mid_value_, mpu_pitch, imu_->lowPassGyroX());
+    stb_adj_ = pid_stb_(mid_value_, mpu_pitch, imu_->lowPassGyroPitch());
 
     /* every 4th loop, run speed and steering PID */
-    if (count % 4 == 0) {
-        // speed
-        if (throttle_ != 0) {
-            pid_vel_.I = 0;
-            ctlr_start_ms = millis();
-        } else {
-            if (millis() > ctlr_start_ms + BALANCE_ENABLE_STEERING_I_TIME) {
-                pid_vel_.I = pid_vel_tmp_.I;
-            }
-        }
-        // When rotating in the same direction, one has a positive sign and the other negative, so the speeds are subtracted.
-        speed = (motor_l.shaft_velocity - motor_r.shaft_velocity) / 2.0f;
-        speed_adj_ = pid_vel_(lpf_throttle(throttle_) - speed);
+    // if (count % 4 == 0) {
+    //     // speed
+    //     if (throttle_ != 0) {
+    //         pid_vel_.I = 0;
+    //         ctlr_start_ms = millis();
+    //     } else {
+    //         if ((unsigned long)(millis() - ctlr_start_ms) > BALANCE_ENABLE_STEERING_I_TIME) {
+    //             pid_vel_.I = pid_vel_tmp_.I;
+    //         }
+    //     }
+    //     // When rotating in the same direction, one has a positive sign and the other negative, so the speeds are subtracted.
+    //     speed = (motor_l.shaft_velocity - motor_r.shaft_velocity) / 2.0f;
+    //     speed_adj_ = pid_vel_(lpf_throttle(throttle_) - speed);
 
-        // steering
-        steering_adj_ = pid_steering_(lpf_steering(steering_), 0.0f, imu_->lowPassGyroZ());
-    }
+    //     // steering
+    //     steering_adj_ = pid_steering_(lpf_steering(steering_), 0.0f, imu_->lowPassGyroZ());
+    // }
 
     motor_l.target = -(stb_adj_ + speed_adj_ + steering_adj_);
     motor_r.target = (stb_adj_ + speed_adj_ - steering_adj_);
 
     count++;
-out:
-    motor_l.move();
-    motor_r.move();
+
     return rc;
 }
 
 void Motor::task()
 {
     // ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    int motor_task = BOT_RUNNING_MODE;
-    bool is_task_changed = false;
+    BOT_STATUS bot_mode = BOT_FALL;
 
-    // Execute every 6 milliseconds
     while(1) {
-        is_task_changed = false;
+        xSemaphoreTake(foc_sem_, portMAX_DELAY);
+
+        // --- 高频循环 (FOC) ---
+        motor_l.loopFOC();
+        motor_l.move();
+        motor_r.loopFOC();
+        motor_r.move();
 
         imu_->update(); // 更新IMU数据
-
-        motor_l.loopFOC();
-        motor_r.loopFOC();
-
-        taskModeUpdate(imu_->getPitch(), motor_task, is_task_changed);
-        switch(motor_task) {
-        case BOT_RUNNING_MODE:
-            motor_l.move(0);
-            motor_r.move(0);
-            break;
-        case BOT_RUNNING_BALANCE:
+        checkBalanceStatus(imu_->getPitch(), bot_mode);
+        if (bot_mode != BOT_BALANCE) {
+            motor_l.target = 0;
+            motor_r.target = 0;
+        } else if (bot_mode == BOT_BALANCE) {
             runBalanceTask();
-            break;
-        default:
-            break;
         }
-
-        // motor_0.monitor();
-        // motor_1.monitor();
-        // Serial.println(motor_config[id].position);
-        // vTaskDelay(pdMS_TO_TICKS(5));
     }
 }
 

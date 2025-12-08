@@ -2622,11 +2622,12 @@ CONFIG_WIFI_PROV_STA_ALL_CHANNEL_SCAN=y
 # end of Wi-Fi Provisioning Manager
 
 #
-# IMU Sensor Selection
+# SimpleFOC
 #
-# CONFIG_SENSOR_BMI220 is not set
-CONFIG_SENSOR_BMI270=y
-# end of IMU Sensor Selection
+# CONFIG_SIMPLEFOC_ADC_MODE_LEGACY is not set
+CONFIG_SIMPLEFOC_ADC_MODE_ONESHOT=y
+# CONFIG_SIMPLEFOC_ADC_MODE_CONTINUOUS is not set
+# end of SimpleFOC
 
 #
 # Animation Player Configuration
