@@ -4,11 +4,12 @@
 
 #include "../port/esp_hal_misc.h"
 #include "foc_utils.h"
+#include "base_classes/IPid.h"
 
 /**
  *  PID controller class
  */
-class PIDController
+class PIDController : public IPID
 {
 public:
     /**
@@ -25,9 +26,6 @@ public:
     float operator() (float error);
     void reset();
 
-    float P; //!< Proportional gain 
-    float I; //!< Integral gain 
-    float D; //!< Derivative gain 
     float output_ramp; //!< Maximum speed of change of the output value
     float limit; //!< Maximum output value
 

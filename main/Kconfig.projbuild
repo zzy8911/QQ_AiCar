@@ -29,7 +29,7 @@ choice BOARD_TYPE
     help
         Board type. 开发板类型
     config BOARD_TYPE_SELF_BALANCING_ROBOT
-        bool "桌面平衡车"
+        bool "QQBot"
     config BOARD_TYPE_BREAD_COMPACT_WIFI
         bool "面包板新版接线（WiFi）"
         depends on IDF_TARGET_ESP32S3
@@ -280,6 +280,15 @@ choice BOARD_TYPE
     config BOARD_TYPE_JIUCHUAN
         bool "九川智能"
 endchoice
+
+menu "QQBot Configuration"
+    depends on BOARD_TYPE_SELF_BALANCING_ROBOT
+
+config ENABLE_CONSOLE
+    bool "Enable UART console"
+    default y
+
+endmenu
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE
     depends on BOARD_TYPE_ESP_S3_LCD_EV_Board

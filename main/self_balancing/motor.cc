@@ -1,6 +1,7 @@
 #include "motor.h"
 #include <memory>
 #include <algorithm>
+#include "cmd_pid.h"
 
 #define TAG "Motor"
 
@@ -167,6 +168,10 @@ int Motor::init()
 
     start_foc_timer();
 
+#ifdef CONFIG_ENABLE_CONSOLE
+    register_pid_cmd();
+#endif
+
     return 0;
 }
 
@@ -226,23 +231,23 @@ int Motor::runBalanceTask()
     stb_adj_ = pid_stb_(mid_value_, mpu_pitch, imu_->lowPassGyroPitch());
 
     /* every 4th loop, run speed and steering PID */
-    // if (count % 4 == 0) {
-    //     // speed
-    //     if (throttle_ != 0) {
-    //         pid_vel_.I = 0;
-    //         ctlr_start_ms = millis();
-    //     } else {
-    //         if ((unsigned long)(millis() - ctlr_start_ms) > BALANCE_ENABLE_STEERING_I_TIME) {
-    //             pid_vel_.I = pid_vel_tmp_.I;
-    //         }
-    //     }
-    //     // When rotating in the same direction, one has a positive sign and the other negative, so the speeds are subtracted.
-    //     speed = (motor_l.shaft_velocity - motor_r.shaft_velocity) / 2.0f;
-    //     speed_adj_ = pid_vel_(lpf_throttle(throttle_) - speed);
+    if (count % 4 == 0) {
+        // speed
+        if (throttle_ != 0) {
+            pid_vel_.I = 0;
+            ctlr_start_ms = millis();
+        } else {
+            if ((unsigned long)(millis() - ctlr_start_ms) > BALANCE_ENABLE_STEERING_I_TIME) {
+                pid_vel_.I = pid_vel_tmp_.I;
+            }
+        }
+        // When rotating in the same direction, one has a positive sign and the other negative, so the speeds are subtracted.
+        speed = (motor_l.shaft_velocity - motor_r.shaft_velocity) / 2.0f;
+        speed_adj_ = pid_vel_(lpf_throttle(throttle_) - speed);
 
-    //     // steering
-    //     steering_adj_ = pid_steering_(lpf_steering(steering_), 0.0f, imu_->lowPassGyroZ());
-    // }
+        // steering
+        // steering_adj_ = pid_steering_(lpf_steering(steering_), 0.0f, imu_->lowPassGyroZ());
+    }
 
     motor_l.target = -(stb_adj_ + speed_adj_ + steering_adj_);
     motor_r.target = (stb_adj_ + speed_adj_ - steering_adj_);
@@ -277,6 +282,20 @@ void Motor::task()
     }
 }
 
+IPID* Motor::getPID(PIDType type)
+{
+    switch (type) {
+    case PIDType::STB:
+        return &pid_stb_;
+    case PIDType::VEL:
+        return &pid_vel_;
+    case PIDType::STEER:
+        return &pid_steering_;
+    }
+    return nullptr;
+}
+
+/* controlled by MCP */
 void Motor::setMotion(float speed, float steering)
 {
     speed = std::clamp(speed, -static_cast<float>(MOTOR_MAX_SPEED), static_cast<float>(MOTOR_MAX_SPEED));

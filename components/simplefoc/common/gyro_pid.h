@@ -1,10 +1,11 @@
 #pragma once
 #include <algorithm>
+#include "base_classes/IPid.h"
 
-class GyroPID {
+class GyroPID  : public IPID {
 public:
     GyroPID(float kp, float ki, float kd, float limit)
-        : P(kp), I(ki), D(kd)
+        : IPID(kp, ki, kd)
     {
         kpMin_ = -limit;
         kpMax_ = limit;
@@ -26,8 +27,6 @@ public:
         kiOut_ = 0.0f;
         pidOut_ = 0.0f;
     }
-
-    float P, I, D;
 
 private:
     float kpMin_, kpMax_;

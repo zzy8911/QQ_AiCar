@@ -15,8 +15,8 @@ struct PIDParams {
     float I;
     float D;
 };
-inline constexpr PIDParams PID_STB {0.01f, 0.0f, 0.003};
-inline constexpr PIDParams PID_VEL {0.061f, 0.0061f, 0.0f};
+inline constexpr PIDParams PID_STB {0.008f, 0.0f, 0.0035};
+inline constexpr PIDParams PID_VEL {-0.04f, 0.0f, 0.0f};
 
 constexpr float MOTOR_MAX_TORQUE = 45.0f;
 constexpr int MOTOR_MAX_SPEED = 20;
@@ -68,6 +68,9 @@ public:
     void attachImu(std::shared_ptr<Imu> imu) {
         imu_ = imu;
     }
+
+    enum class PIDType { STB, VEL, STEER };
+    IPID* getPID(PIDType type);
 private:
     Motor();
     void task();

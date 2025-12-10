@@ -1,9 +1,7 @@
 #include "pid.h"
 
 PIDController::PIDController(float P, float I, float D, float ramp, float limit)
-    : P(P)
-    , I(I)
-    , D(D)
+    : IPID(P, I, D)
     , output_ramp(ramp)    // output derivative limit [volts/second]
     , limit(limit)         // output supply limit     [volts]
     , error_prev(0.0f)
