@@ -210,6 +210,7 @@ elseif(CONFIG_BOARD_TYPE_SELF_BALANCING_ROBOT)
                         "self_balancing/imu.cpp"
                         "self_balancing/pid_tuner.cc"
                         "self_balancing/motor.cc"
+                        "self_balancing/console.c"
                         "button/button_event.cpp"
                         "XboxController/XboxControllerNotificationParser.cpp"
                         "self_balancing/controller.cpp")
