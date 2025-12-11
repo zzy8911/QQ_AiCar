@@ -32,6 +32,10 @@
 #include <driver/gpio.h>
 #include <arpa/inet.h>
 
+#ifdef CONFIG_BOARD_TYPE_SELF_BALANCING_ROBOT
+#include "self_balancing/hal.h"
+#endif
+
 #define TAG "Application"
 
 
@@ -717,6 +721,10 @@ void Application::Start() {
         ResetDecoder();
         PlaySound(Lang::Sounds::P3_SUCCESS);
     }
+
+#ifdef CONFIG_BOARD_TYPE_SELF_BALANCING_ROBOT
+    HAL::Init(board.GetI2cBus());
+#endif
 
     // Print heap stats
     SystemInfo::PrintHeapStats();

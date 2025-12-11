@@ -639,7 +639,14 @@ CONFIG_BOARD_TYPE_SELF_BALANCING_ROBOT=y
 #
 # QQBot Configuration
 #
-CONFIG_ENABLE_CONSOLE=y
+# CONFIG_ENABLE_CONSOLE is not set
+
+#
+# PID Wireless Tuning Settings
+#
+CONFIG_PID_TUNER_ENABLE=y
+CONFIG_PID_TUNER_UDP_PORT=7749
+# end of PID Wireless Tuning Settings
 # end of QQBot Configuration
 
 # CONFIG_LCD_ST7789_240X320 is not set

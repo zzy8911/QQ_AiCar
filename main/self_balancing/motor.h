@@ -15,8 +15,9 @@ struct PIDParams {
     float I;
     float D;
 };
-inline constexpr PIDParams PID_STB {0.008f, 0.0f, 0.0035};
-inline constexpr PIDParams PID_VEL {-0.04f, 0.0f, 0.0f};
+inline constexpr PIDParams PID_STB {0.01f, 0.0f, 0.0035}; // (0.0015, 0, 0.003) * 0.6
+inline constexpr PIDParams PID_VEL {0.018f, 0.015f, 0.0f};
+inline constexpr PIDParams PID_STEER {0.02, 0, 0.001};
 
 constexpr float MOTOR_MAX_TORQUE = 45.0f;
 constexpr int MOTOR_MAX_SPEED = 20;
@@ -60,6 +61,9 @@ public:
 
     void adjustMidValue(float delta) {
         mid_value_ += delta;
+    }
+    void setMidpoint(float midpoint) {
+        mid_value_ = midpoint;
     }
     float getMidValue() {
         return mid_value_;

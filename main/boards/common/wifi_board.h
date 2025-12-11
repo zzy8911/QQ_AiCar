@@ -3,6 +3,8 @@
 
 #include "board.h"
 
+#define WIFI_CONNECTED_BIT BIT0
+
 class WifiBoard : public Board {
 protected:
     bool wifi_config_mode_ = false;

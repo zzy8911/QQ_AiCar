@@ -286,7 +286,25 @@ menu "QQBot Configuration"
 
 config ENABLE_CONSOLE
     bool "Enable UART console"
-    default y
+    default n
+
+menu "PID Wireless Tuning Settings"
+
+    config PID_TUNER_ENABLE
+        bool "Enable wireless PID tuning"
+        default y
+        help
+            Enable or disable PID tuning via UDP JSON commands.
+
+    config PID_TUNER_UDP_PORT
+        int "UDP server port"
+        default 7749
+        range 1024 65535
+        depends on PID_TUNER_ENABLE
+        help
+            UDP port on which ESP32 will listen for PID tuning JSON commands.
+
+    endmenu
 
 endmenu
 

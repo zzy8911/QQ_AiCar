@@ -210,10 +210,10 @@ bool IRAM_ATTR adcInit(uint8_t pin)
 static adc_oneshot_unit_handle_t adc1_handle = nullptr;
 static adc_oneshot_unit_handle_t adc2_handle = nullptr;
 
-// Pin → channel 映射
+// Pin -> channel 映射
 static int8_t digitalPinToAnalogChannel(uint8_t pin) {
     if (pin > 0 && pin <= 20) {
-        return pin - 1;  // GPIO1 → ch0 ... GPIO20 → ch19
+        return pin - 1;  // GPIO1 -> ch0 ... GPIO20 -> ch19
     }
     return -1;
 }

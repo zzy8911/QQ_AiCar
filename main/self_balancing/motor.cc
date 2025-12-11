@@ -1,7 +1,7 @@
 #include "motor.h"
 #include <memory>
 #include <algorithm>
-#include "cmd_pid.h"
+#include "pid_tuner.h"
 
 #define TAG "Motor"
 
@@ -16,7 +16,7 @@ Motor::Motor()
       pid_stb_(PID_STB.P, PID_STB.I, PID_STB.D, MOTOR_MAX_TORQUE),
       pid_vel_(PID_VEL.P, PID_VEL.I, PID_VEL.D, 100000, MOTOR_MAX_TORQUE),
       pid_vel_tmp_(PID_VEL.P, PID_VEL.I, PID_VEL.D, 100000, MOTOR_MAX_TORQUE),
-      pid_steering_(0.02, 0, 0.001, MOTOR_MAX_TORQUE / 2),
+      pid_steering_(PID_STEER.P, PID_STEER.I, PID_STEER.D, MOTOR_MAX_TORQUE / 2),
       lpf_throttle(0.5),
       lpf_steering(0.5) {}
 
@@ -172,6 +172,10 @@ int Motor::init()
     register_pid_cmd();
 #endif
 
+#ifdef CONFIG_PID_TUNER_ENABLE
+    pid_tuner_start();
+#endif
+
     return 0;
 }
 
@@ -233,20 +237,20 @@ int Motor::runBalanceTask()
     /* every 4th loop, run speed and steering PID */
     if (count % 4 == 0) {
         // speed
-        if (throttle_ != 0) {
-            pid_vel_.I = 0;
-            ctlr_start_ms = millis();
-        } else {
-            if ((unsigned long)(millis() - ctlr_start_ms) > BALANCE_ENABLE_STEERING_I_TIME) {
-                pid_vel_.I = pid_vel_tmp_.I;
-            }
-        }
+        // if (throttle_ != 0) {
+        //     pid_vel_.I = 0;
+        //     ctlr_start_ms = millis();
+        // } else {
+        //     if ((unsigned long)(millis() - ctlr_start_ms) > BALANCE_ENABLE_STEERING_I_TIME) {
+        //         pid_vel_.I = pid_vel_tmp_.I;
+        //     }
+        // }
         // When rotating in the same direction, one has a positive sign and the other negative, so the speeds are subtracted.
         speed = (motor_l.shaft_velocity - motor_r.shaft_velocity) / 2.0f;
         speed_adj_ = pid_vel_(lpf_throttle(throttle_) - speed);
 
         // steering
-        // steering_adj_ = pid_steering_(lpf_steering(steering_), 0.0f, imu_->lowPassGyroZ());
+        steering_adj_ = pid_steering_(lpf_steering(steering_), 0.0f, imu_->lowPassGyroZ());
     }
 
     motor_l.target = -(stb_adj_ + speed_adj_ + steering_adj_);

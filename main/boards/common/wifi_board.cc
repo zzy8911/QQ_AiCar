@@ -24,12 +24,18 @@
 
 static const char *TAG = "WifiBoard";
 
+EventGroupHandle_t wifi_event_group_ = nullptr;
+
 WifiBoard::WifiBoard() {
     Settings settings("wifi", true);
     wifi_config_mode_ = settings.GetInt("force_ap") == 1;
     if (wifi_config_mode_) {
         ESP_LOGI(TAG, "force_ap is set to 1, reset to 0");
         settings.SetInt("force_ap", 0);
+    }
+    if (wifi_event_group_ == nullptr) {
+        wifi_event_group_ = xEventGroupCreate();
+        ESP_LOGI("WifiBoard", "Created WiFi EventGroup");
     }
 }
 
@@ -102,6 +108,8 @@ void WifiBoard::StartNetwork() {
         std::string notification = Lang::Strings::CONNECTED_TO;
         notification += ssid;
         display->ShowNotification(notification.c_str(), 30000);
+
+        xEventGroupSetBits(wifi_event_group_, WIFI_CONNECTED_BIT);
     });
     wifi_station.Start();
 
