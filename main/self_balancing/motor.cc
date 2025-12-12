@@ -97,7 +97,10 @@ static void initFOC(BLDCMotor &motor, float offset)
 
 void Motor::foc_timer_callback(void* arg) {
     Motor* self = static_cast<Motor*>(arg);
-    xSemaphoreGive(self->foc_sem_);
+    self->motor_l.loopFOC();
+    self->motor_l.move();
+    self->motor_r.loopFOC();
+    self->motor_r.move();
 }
 
 int Motor::start_foc_timer()
@@ -114,12 +117,116 @@ int Motor::start_foc_timer()
     return 0;
 }
 
+int Motor::runBalanceTask()
+{
+    // float voltage_control;
+    static unsigned long ctlr_start_ms = 0;
+    int rc = 0;
+    float speed = 0;
+    static size_t count = 0;
+
+    float mpu_pitch = imu_->getPitch();
+
+    /* Parallel PID */
+    stb_adj_ = pid_stb_(mid_value_, mpu_pitch, imu_->lowPassGyroPitch());
+
+    /* every 4th loop, run speed and steering PID */
+    if (count % 4 == 0) {
+        // speed
+        // if (throttle_ != 0) {
+        //     pid_vel_.I = 0;
+        //     ctlr_start_ms = millis();
+        // } else {
+        //     if ((unsigned long)(millis() - ctlr_start_ms) > BALANCE_ENABLE_STEERING_I_TIME) {
+        //         pid_vel_.I = pid_vel_tmp_.I;
+        //     }
+        // }
+        // When rotating in the same direction, one has a positive sign and the other negative, so the speeds are subtracted.
+        speed = (motor_l.shaft_velocity - motor_r.shaft_velocity) / 2.0f;
+        speed_adj_ = pid_vel_(lpf_throttle(throttle_) - speed);
+
+        // steering
+        steering_adj_ = pid_steering_(lpf_steering(steering_), 0.0f, imu_->lowPassGyroZ());
+    }
+
+    motor_l.target = 0.5; //-(stb_adj_ + speed_adj_ + steering_adj_);
+    motor_r.target = 0.5; //(stb_adj_ + speed_adj_ - steering_adj_);
+
+    count++;
+
+    return rc;
+}
+#if 0
+int Motor::runBalanceTask()
+{
+    static size_t count = 0;
+
+    float pitch = imu_->getPitch();                // rad or deg, your units
+    float gyro_pitch = imu_->lowPassGyroPitch();   // 必须用于 D 项
+
+    float speed_l = motor_l.shaft_velocity;
+    float speed_r = motor_r.shaft_velocity;
+    float speed = (speed_l - speed_r) * 0.5f;      // 平均前进速度
+
+    /* -----------------------------
+     * 1) 外环：速度控制（低频）
+     * 速度误差 → 输出期望倾角 theta_ref
+     * ----------------------------- */
+    float theta_ref = mid_value_;                  // mid_value_ 应该是直立时的 pitch setpoint（一般是0）
+
+    if (count % 4 == 0) {                          // 降频外环
+        float throttle_filtered = lpf_throttle(throttle_);
+        float speed_error = throttle_filtered - speed;
+
+        theta_ref += pid_vel_(speed_error);        // 外环给姿态环一个新的目标倾角
+
+        /* 转向（保持并行，只作用差分扭矩）*/
+        float steering_cmd = lpf_steering(steering_);
+        steering_adj_ = pid_steering_(steering_cmd, 0.0f, imu_->lowPassGyroZ());
+    }
+
+    /* -----------------------------
+     * 2) 内环：姿态控制（高频）
+     * θ_ref - pitch → 输出扭矩 torque_cmd
+     * ----------------------------- */
+    float theta_err = theta_ref - pitch;
+    float torque_cmd = pid_stb_(theta_err, gyro_pitch);  // PD/PID on the tilt
+
+    /* -----------------------------
+     * 3) 合成左右轮输出
+     * ----------------------------- */
+    motor_l.target = -(torque_cmd) - steering_adj_;
+    motor_r.target = +(torque_cmd) - steering_adj_;
+
+    count++;
+    return 0;
+}
+#endif
+void Motor::task()
+{
+    BOT_STATUS bot_mode = BOT_FALL;
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFreq = pdMS_TO_TICKS(10); // 100 Hz
+
+    while(1) {
+        vTaskDelayUntil(&xLastWakeTime, xFreq);
+        imu_->update();
+        checkBalanceStatus(imu_->getPitch(), bot_mode);
+        if (bot_mode != BOT_BALANCE) {
+            motor_l.target = 0;
+            motor_r.target = 0;
+        } else if (bot_mode == BOT_BALANCE) {
+            runBalanceTask();
+        }
+    }
+}
+
 int Motor::init()
 {
     ESP_LOGI(TAG, "Motor starting...");
 
-    init_motor(&motor_l, &driver_l, &sensor_l);
-    init_motor(&motor_r, &driver_r, &sensor_r);
+    init_motor(&motor_l, &driver_l, &sensor_l, &cs_l);
+    init_motor(&motor_r, &driver_r, &sensor_r, &cs_r);
     vTaskDelay(100);
 
     float l_offset = settings.GetFloat("l_offset", 0);
@@ -140,12 +247,6 @@ int Motor::init()
 
     ESP_LOGI(TAG, "Motor ready.");
 
-    foc_sem_ = xSemaphoreCreateBinary();
-    if (foc_sem_ == nullptr) {
-        ESP_LOGE(TAG, "FOC semaphore create failed.");
-        return -1;
-    }
-
     motor_task_stack_ = (StackType_t*) heap_caps_malloc(4096 * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
     if (motor_task_handle_ == nullptr) {
         motor_task_handle_ = xTaskCreateStaticPinnedToCore([](void* arg) {
@@ -159,7 +260,7 @@ int Motor::init()
             20,
             motor_task_stack_,
             &motor_task_tcb_,
-            1); // Motor: CORE 1
+            0); // Motor: CORE 0
         if (motor_task_handle_ == nullptr) {
             ESP_LOGE(TAG, "start motor_run task failed.");
             return -1;
@@ -219,71 +320,6 @@ void Motor::resetAllPid()
     pid_stb_.reset();
     pid_vel_.reset();
     pid_steering_.reset();
-}
-
-int Motor::runBalanceTask()
-{
-    // float voltage_control;
-    static unsigned long ctlr_start_ms = 0; 
-    int rc = 0;
-    float speed = 0;
-    static size_t count = 0;
-
-    float mpu_pitch = imu_->getPitch();
-
-    /* Parallel PID */
-    stb_adj_ = pid_stb_(mid_value_, mpu_pitch, imu_->lowPassGyroPitch());
-
-    /* every 4th loop, run speed and steering PID */
-    if (count % 4 == 0) {
-        // speed
-        // if (throttle_ != 0) {
-        //     pid_vel_.I = 0;
-        //     ctlr_start_ms = millis();
-        // } else {
-        //     if ((unsigned long)(millis() - ctlr_start_ms) > BALANCE_ENABLE_STEERING_I_TIME) {
-        //         pid_vel_.I = pid_vel_tmp_.I;
-        //     }
-        // }
-        // When rotating in the same direction, one has a positive sign and the other negative, so the speeds are subtracted.
-        speed = (motor_l.shaft_velocity - motor_r.shaft_velocity) / 2.0f;
-        speed_adj_ = pid_vel_(lpf_throttle(throttle_) - speed);
-
-        // steering
-        steering_adj_ = pid_steering_(lpf_steering(steering_), 0.0f, imu_->lowPassGyroZ());
-    }
-
-    motor_l.target = -(stb_adj_ + speed_adj_ + steering_adj_);
-    motor_r.target = (stb_adj_ + speed_adj_ - steering_adj_);
-
-    count++;
-
-    return rc;
-}
-
-void Motor::task()
-{
-    // ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    BOT_STATUS bot_mode = BOT_FALL;
-
-    while(1) {
-        xSemaphoreTake(foc_sem_, portMAX_DELAY);
-
-        // --- 高频循环 (FOC) ---
-        motor_l.loopFOC();
-        motor_l.move();
-        motor_r.loopFOC();
-        motor_r.move();
-
-        imu_->update(); // 更新IMU数据
-        checkBalanceStatus(imu_->getPitch(), bot_mode);
-        if (bot_mode != BOT_BALANCE) {
-            motor_l.target = 0;
-            motor_r.target = 0;
-        } else if (bot_mode == BOT_BALANCE) {
-            runBalanceTask();
-        }
-    }
 }
 
 IPID* Motor::getPID(PIDType type)

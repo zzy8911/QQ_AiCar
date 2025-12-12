@@ -68,11 +68,15 @@ void AfeWakeWord::Initialize(AudioCodec* codec) {
     }
     */
     afe_config_t* afe_config = afe_config_init(codec_->GetInputFormat(), models, AFE_TYPE_SR, AFE_MODE_HIGH_PERF);
+#ifdef CONFIG_USE_DEVICE_AEC
     afe_config->aec_init = codec_->input_reference();
     afe_config->aec_mode = AEC_MODE_SR_HIGH_PERF;
+#else
+    afe_config->aec_init = false;
+#endif
     afe_config->vad_init = true;
     afe_config->vad_mode = VAD_MODE_3;
-    afe_config->afe_perferred_core = 1;
+    afe_config->afe_perferred_core = 1; // useless
     afe_config->afe_perferred_priority = 1;
     afe_config->memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
     
@@ -80,11 +84,11 @@ void AfeWakeWord::Initialize(AudioCodec* codec) {
     afe_data_ = afe_iface_->create_from_config(afe_config);
 
     audio_detection_task_stack_ = (StackType_t*) heap_caps_malloc(4096 * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
-    xTaskCreateStatic([](void* arg) {
+    xTaskCreateStaticPinnedToCore([](void* arg) {
         auto this_ = (AfeWakeWord*)arg;
         this_->AudioDetectionTask();
         vTaskDelete(NULL);
-    }, "audio_detection", 4096, this, 3, audio_detection_task_stack_, &audio_detection_task_tcb_);
+    }, "audio_detection", 4096, this, 3, audio_detection_task_stack_, &audio_detection_task_tcb_, 0);
 }
 
 void AfeWakeWord::OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) {

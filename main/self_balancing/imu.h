@@ -25,4 +25,5 @@ public:
 private:
     BMI270 bmi270_;
     Filter filter_;
+    bool is_ready_ = false;
 };

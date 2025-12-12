@@ -20,24 +20,28 @@ esp_err_t Imu::init(i2c_master_bus_handle_t i2c_handle)
     // 初始化底层 BMI270
     esp_err_t ret = bmi270_.init(i2c_handle);
     if (ret != ESP_OK) {
+        is_ready_ = false;
         ESP_LOGE(TAG, "BMI270 begin() failed: %d", ret);
         return ret;
+    } else {
+        is_ready_ = true;
+        ESP_LOGI(TAG, "Imu::init OK");
+        return ESP_OK;
     }
-
-    ESP_LOGI(TAG, "Imu::init OK");
-    return ESP_OK;
 }
 
 void Imu::update()
 {
-    esp_err_t r = bmi270_.update();
-    if (r != ESP_OK) {
-        ESP_LOGW(TAG, "BMI270 update failed: %d", r);
-        return;
-    }
+    if (is_ready_ == true) {
+        esp_err_t r = bmi270_.update();
+        if (r != ESP_OK) {
+            ESP_LOGW(TAG, "BMI270 update failed: %d", r);
+            return;
+        }
 
-    filter_.update(bmi270_.accX(), bmi270_.accY(), bmi270_.accZ(),
-                   bmi270_.gyrX(), bmi270_.gyrY(), bmi270_.gyrZ());
+        filter_.update(bmi270_.accX(), bmi270_.accY(), bmi270_.accZ(),
+                    bmi270_.gyrX(), bmi270_.gyrY(), bmi270_.gyrZ());
+    }
 }
 
 float Imu::getPitch()

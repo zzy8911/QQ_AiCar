@@ -196,6 +196,11 @@ bool IRAM_ATTR adcInit(uint8_t pin)
     initialized = true;
     return true;
 }
+
+void adcStart()
+{
+    // Legacy 模式不需要启动
+}
 #endif
 
 #if CONFIG_SIMPLEFOC_ADC_MODE_ONESHOT
@@ -295,6 +300,11 @@ bool IRAM_ATTR adcInit(uint8_t pin)
     return true;
 }
 
+void adcStart()
+{
+    // Oneshot 模式不需要启动
+}
+
 /*----------------------------------------------------------
     adcRead(pin)：读取 ADC（IRAM 安全，可在 ISR 用）
 ----------------------------------------------------------*/
@@ -372,8 +382,8 @@ struct AdcChannelInfo {
 static AdcChannelInfo g_adc_channel_map[SOC_ADC_MAX_CHANNEL_NUM] = {}; // 索引 = channel
 
 // DMA 缓冲区
-#define ADC_READ_LEN     16
-static uint8_t dma_buffer[ADC_READ_LEN] = {0};
+static uint8_t *dma_buffer = nullptr;
+static uint32_t dma_buffer_size = 0;
 
 // Continuous ADC handle
 static adc_continuous_handle_t adc_handle = NULL;
@@ -413,20 +423,13 @@ bool adcInit(uint8_t pin)
 // -----------------------------------------------------
 // ADC 初始化（只执行一次）
 // -----------------------------------------------------
-void adcStart()
+void adcStart(int sample_rate_per_channel)
 {
     static bool adc_started = false;
     if (adc_started) return;     // 多次调用 Safe
     adc_started = true;
 
     ESP_LOGI(TAG, "Initializing ADC continuous...");
-
-    // ---- 创建 ADC continuous handle ----
-    adc_continuous_handle_cfg_t handle_cfg = {
-        .max_store_buf_size = 128,
-        .conv_frame_size = ADC_READ_LEN,
-    };
-    ESP_ERROR_CHECK(adc_continuous_new_handle(&handle_cfg, &adc_handle));
 
     // ---- 构建通道 pattern ----
     adc_digi_pattern_config_t patterns[SOC_ADC_MAX_CHANNEL_NUM] = {0};
@@ -441,11 +444,20 @@ void adcStart()
             pat_idx++;
         }
     }
+    dma_buffer_size = pat_idx * SOC_ADC_DIGI_RESULT_BYTES;
+    dma_buffer = (uint8_t*)heap_caps_malloc(dma_buffer_size, MALLOC_CAP_DMA);
+
+    // ---- 创建 ADC continuous handle ----
+    adc_continuous_handle_cfg_t handle_cfg = {
+        .max_store_buf_size = 128,
+        .conv_frame_size = dma_buffer_size,
+    };
+    ESP_ERROR_CHECK(adc_continuous_new_handle(&handle_cfg, &adc_handle));
 
     adc_continuous_config_t adc_cfg = {
         .pattern_num    = pat_idx,
         .adc_pattern    = patterns,
-        .sample_freq_hz = 4000,
+        .sample_freq_hz = sample_rate_per_channel*pat_idx, // 总采样率, 每通道采样率 = sample_freq_hz / 通道数
         .conv_mode      = ADC_CONV_SINGLE_UNIT_1,
         .format         = ADC_DIGI_OUTPUT_FORMAT_TYPE2,
     };
@@ -470,7 +482,7 @@ void adcStart()
                 ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
                 // 读数据（非阻塞）
-                while (adc_continuous_read(adc_handle, dma_buffer, ADC_READ_LEN, &ret_len, 0) == ESP_OK) {
+                while (adc_continuous_read(adc_handle, dma_buffer, dma_buffer_size, &ret_len, 0) == ESP_OK) {
                     for (int i = 0; i < ret_len; i += SOC_ADC_DIGI_RESULT_BYTES) {
                         adc_digi_output_data_t *p = (adc_digi_output_data_t*)&dma_buffer[i];
 
@@ -483,6 +495,8 @@ void adcStart()
                     }
                 }
             }
+
+            free(dma_buffer);
         },
         "adc_dma_task",
         4096,

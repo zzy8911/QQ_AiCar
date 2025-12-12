@@ -14,8 +14,9 @@ uint16_t adcRead(uint8_t pin);
  */
 bool adcInit(uint8_t pin);
 
-#ifdef CONFIG_SIMPLEFOC_ADC_MODE_CONTINUOUS
-void adcStart();
-#endif
+/*
+ * Start ADC
+ */
+void adcStart(int sample_rate_per_channel=4000); // default 4k samples per second per channel
 
 #endif

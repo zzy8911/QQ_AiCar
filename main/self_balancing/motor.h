@@ -119,9 +119,8 @@ private:
 
     // timer for FOC loop
     esp_timer_handle_t foc_timer_;
-    static constexpr uint32_t FOC_TIMER_PERIOD_US = 500; // 选用2kHz控制频率, 4Khz对系统实时性要求比较高，比较吃力了
+    static constexpr uint32_t FOC_TIMER_PERIOD_US = 250; // 选用2kHz控制频率, 4Khz对系统实时性要求比较高，比较吃力了
     static void IRAM_ATTR foc_timer_callback(void* arg);
-    SemaphoreHandle_t foc_sem_ = nullptr;
     int start_foc_timer();
 };
 

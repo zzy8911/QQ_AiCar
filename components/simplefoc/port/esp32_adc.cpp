@@ -47,7 +47,5 @@ void* _configureADCInline(const void* driver_params, const int pinA, const int p
 
 // function starting the ADC for inline current sensing
 void _startADCInline(){
-#ifdef USING_ADC_CONTINUOUS_MODE
   adcStart();
-#endif
 }
