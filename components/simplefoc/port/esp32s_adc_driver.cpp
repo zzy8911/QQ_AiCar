@@ -501,9 +501,9 @@ void adcStart(int sample_rate_per_channel)
         "adc_dma_task",
         4096,
         NULL,
-        5,
+        20,
         &adc_task_handle,
-        0     // 避免和 FOC 冲突
+        1
     );
 
     ESP_LOGI(TAG, "ADC continuous started.");

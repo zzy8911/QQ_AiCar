@@ -26,6 +26,7 @@ private:
     int8_t setAccelConfig(uint8_t odr, uint8_t range);
     float lsbToDps(int16_t val, float dps, uint8_t bit_width);
     float lsbToMps2(int16_t val, float g_range, uint8_t bit_width);
+    void initScales(float gyro_range, float acc_range);
 
 private:
     struct bmi2_dev dev_{};
@@ -33,6 +34,8 @@ private:
     i2c_master_bus_handle_t i2c_handle_;
     SemaphoreHandle_t i2c_semaphore_;
     uint8_t address_;
+    float acc_scale_ = 0.0f;     // m/s^2 per LSB
+    float gyr_scale_ = 0.0f;     // dps per LSB
 
     float acc_x_{0}, acc_y_{0}, acc_z_{0};
     float gyr_x_{0}, gyr_y_{0}, gyr_z_{0};

@@ -88,7 +88,7 @@ void AfeWakeWord::Initialize(AudioCodec* codec) {
         auto this_ = (AfeWakeWord*)arg;
         this_->AudioDetectionTask();
         vTaskDelete(NULL);
-    }, "audio_detection", 4096, this, 3, audio_detection_task_stack_, &audio_detection_task_tcb_, 0);
+    }, "audio_detection", 4096, this, 3, audio_detection_task_stack_, &audio_detection_task_tcb_, 1);
 }
 
 void AfeWakeWord::OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) {

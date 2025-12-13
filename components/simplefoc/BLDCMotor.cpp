@@ -126,6 +126,9 @@ void BLDCMotor::enable()
 int  BLDCMotor::initFOC( float zero_electric_offset, Direction _sensor_direction) {
   int exit_flag = 1;
 
+  if (current_sense)
+    current_sense->start();
+
   motor_status = FOCMotorStatus::motor_calibrating;
 
   // align motor if necessary
@@ -161,7 +164,6 @@ int  BLDCMotor::initFOC( float zero_electric_offset, Direction _sensor_direction
         SIMPLEFOC_DEBUG("MOT: Init FOC error, current sense not initialized");
         exit_flag = 0;
       }else{
-        current_sense->start();
         exit_flag *= alignCurrentSense();
       }
     }

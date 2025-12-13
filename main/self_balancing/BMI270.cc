@@ -41,6 +41,8 @@ int BMI270::init(i2c_master_bus_handle_t i2c_handle, SemaphoreHandle_t i2c_semap
     rslt = setAccelConfig(BMI2_ACC_ODR_400HZ, BMI2_ACC_RANGE_2G);
     if (rslt != BMI2_OK) return rslt;
 
+    initScales(500, 2.0); // 500 dps, 2g
+
     uint8_t sensor_list[] = {BMI2_GYRO, BMI2_ACCEL};
     rslt = bmi2_sensor_enable(sensor_list, sizeof(sensor_list), &dev_);
     if (rslt != BMI2_OK) return rslt;
@@ -93,6 +95,14 @@ int8_t BMI270::setAccelConfig(uint8_t odr, uint8_t range) {
     return rslt;
 }
 
+void BMI270::initScales(float gyro_range, float acc_range) {
+    // 2^resolution = 65536, half-range = 32768
+    float half_scale = (1 << dev_.resolution) * 0.5f;
+
+    acc_scale_ = (GRAVITY_EARTH * acc_range) / half_scale;  // m/s^2 per LSB
+    gyr_scale_ = gyro_range / half_scale;                   // dps per LSB
+}
+
 float BMI270::lsbToDps(int16_t val, float dps, uint8_t bit_width) {
     float half_scale = powf(2, bit_width) / 2.0f;
     return (dps / half_scale) * val;
@@ -107,13 +117,13 @@ int BMI270::update() {
     int8_t rslt = bmi2_get_sensor_data(&sensor_data_, &dev_);
     if (rslt != BMI2_OK) return -1;
 
-    acc_x_ = lsbToMps2(sensor_data_.acc.x, 2.0f, dev_.resolution);
-    acc_y_ = lsbToMps2(sensor_data_.acc.y, 2.0f, dev_.resolution);
-    acc_z_ = lsbToMps2(sensor_data_.acc.z, 2.0f, dev_.resolution);
+    acc_x_ = sensor_data_.acc.x * acc_scale_;
+    acc_y_ = sensor_data_.acc.y * acc_scale_;
+    acc_z_ = sensor_data_.acc.z * acc_scale_;
 
-    gyr_x_ = lsbToDps(sensor_data_.gyr.x, 500.0f, dev_.resolution);
-    gyr_y_ = lsbToDps(sensor_data_.gyr.y, 500.0f, dev_.resolution);
-    gyr_z_ = lsbToDps(sensor_data_.gyr.z, 500.0f, dev_.resolution);
+    gyr_x_ = sensor_data_.gyr.x * gyr_scale_;
+    gyr_y_ = sensor_data_.gyr.y * gyr_scale_;
+    gyr_z_ = sensor_data_.gyr.z * gyr_scale_;
 
     // ESP_LOGI(TAG, "acc: %.2f, %.2f, %.2f m/s²; gyr: %.2f, %.2f, %.2f dps",
     //          acc_x_, acc_y_, acc_z_, gyr_x_, gyr_y_, gyr_z_);

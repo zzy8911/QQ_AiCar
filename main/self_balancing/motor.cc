@@ -59,9 +59,13 @@ static void init_motor(BLDCMotor *motor, BLDCDriver3PWM *driver, SensorType *sen
     } else {
         // current sense参数设置
         cs->init();
+#if 1
         cs->gain_a *= -1;
         cs->gain_b *= -1;
         cs->skip_align = true;
+#else
+        cs->linkDriver(driver);
+#endif
         motor->linkCurrentSense(cs);
         // FOC模型选择
         motor->torque_controller = TorqueControlType::foc_current;
@@ -149,8 +153,8 @@ int Motor::runBalanceTask()
         steering_adj_ = pid_steering_(lpf_steering(steering_), 0.0f, imu_->lowPassGyroZ());
     }
 
-    motor_l.target = 0.5; //-(stb_adj_ + speed_adj_ + steering_adj_);
-    motor_r.target = 0.5; //(stb_adj_ + speed_adj_ - steering_adj_);
+    motor_l.target = 0.2; //-(stb_adj_ + speed_adj_ + steering_adj_);
+    motor_r.target = 0.2; //(stb_adj_ + speed_adj_ - steering_adj_);
 
     count++;
 
@@ -215,10 +219,29 @@ void Motor::task()
         if (bot_mode != BOT_BALANCE) {
             motor_l.target = 0;
             motor_r.target = 0;
+            motor_l.PID_current_q.reset();
+            motor_l.PID_current_d.reset();
+            motor_r.PID_current_q.reset();
+            motor_r.PID_current_d.reset();
         } else if (bot_mode == BOT_BALANCE) {
             runBalanceTask();
         }
     }
+}
+
+static int vTaskSystemSync()
+{
+#if ( configUSE_TRACE_FACILITY == 1 )
+    UBaseType_t uxArraySize = uxTaskGetNumberOfTasks();
+    TaskStatus_t * pxTaskStatusArray = (TaskStatus_t*)pvPortMalloc( uxArraySize * sizeof( TaskStatus_t ) );
+    if( pxTaskStatusArray != NULL ) {
+        configRUN_TIME_COUNTER_TYPE ulTotalTime;
+        // 关键：触发 FreeRTOS 内部任务状态同步
+        uxTaskGetSystemState( pxTaskStatusArray, uxArraySize, &ulTotalTime );
+        vPortFree( pxTaskStatusArray );
+    }
+#endif
+    return 0;
 }
 
 int Motor::init()
@@ -247,6 +270,10 @@ int Motor::init()
 
     ESP_LOGI(TAG, "Motor ready.");
 
+    vTaskSystemSync(); // 重要!!!，这个会同步task，没有这个会导致simplefoc运行不正常
+
+    start_foc_timer();
+
     motor_task_stack_ = (StackType_t*) heap_caps_malloc(4096 * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
     if (motor_task_handle_ == nullptr) {
         motor_task_handle_ = xTaskCreateStaticPinnedToCore([](void* arg) {
@@ -257,17 +284,15 @@ int Motor::init()
             "MotorThread",
             4096,
             this,
-            20,
+            10,
             motor_task_stack_,
             &motor_task_tcb_,
-            0); // Motor: CORE 0
+            0);
         if (motor_task_handle_ == nullptr) {
             ESP_LOGE(TAG, "start motor_run task failed.");
             return -1;
         }
     }
-
-    start_foc_timer();
 
 #ifdef CONFIG_ENABLE_CONSOLE
     register_pid_cmd();
