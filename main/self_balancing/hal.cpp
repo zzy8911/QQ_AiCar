@@ -14,7 +14,7 @@ void HAL::Init(i2c_master_bus_handle_t i2c_bus)
     auto imu = std::make_shared<Imu>(
         i2c_bus,
         nullptr,
-        FilterType::KALMAN,
+        FilterType::MAHONY,
         CoordinateSystem::X_FORWARD
     );
     imu->init();

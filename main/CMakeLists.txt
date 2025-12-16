@@ -206,6 +206,7 @@ elseif(CONFIG_BOARD_TYPE_SELF_BALANCING_ROBOT)
     list(APPEND SOURCES "self_balancing/hal.cpp"
                         "self_balancing/BMI270.cc"
                         "self_balancing/kalman.cpp"
+                        "self_balancing/mahony.cpp"
                         "self_balancing/filter.cc"
                         "self_balancing/imu.cpp"
                         "self_balancing/pid_tuner.cc"

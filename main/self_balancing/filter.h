@@ -1,13 +1,15 @@
 #pragma once
 #include "esp_err.h"
 #include "kalman.h"
+#include "mahony.h"
 #include <cmath>
 
 enum class FilterType {
     NONE,
     GYRO_ONLY,
     COMPLEMENTARY,
-    KALMAN
+    KALMAN,
+    MAHONY
 };
 
 enum class CoordinateSystem {
@@ -40,9 +42,10 @@ private:
     FilterType type_;
     CoordinateSystem coord_sys_;
     Kalman kalman_;
+    Mahony mahony_;
     Attitude angle_{0.0f, 0.0f, 0.0f};
 
-    float pitch_acc_ = 0.0f;
+    float pitch_acc_ = 0.0f; // lowpass filter
     float pitch_kalman_ = 0.0f;
     float pitch_comp_ = 0.0f;
     float pitch_gyro_ = 0.0f;
@@ -51,6 +54,6 @@ private:
     float gyroPitch_fv_ = 0.0f;
     float gyroZ_fv_ = 0.0f;
 
-    static constexpr float ALPHA = 0.93f;
+    static constexpr float ALPHA = 0.95f;
     static constexpr float RAD_TO_DEG = 57.29577951f; /*!< Radians to degrees: 360 / 2.0 / PI */
 };

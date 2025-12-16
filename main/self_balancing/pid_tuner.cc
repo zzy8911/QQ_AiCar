@@ -132,6 +132,11 @@ void register_pid_cmd()
 #include "motor.h"
 #include "esp_wifi.h"
 
+// 遥测目标地址和 Socket
+// 【动态目标】: 遥测数据目标地址，从接收到的命令中动态获取
+static struct sockaddr_in pc_addr_target;
+static bool pc_addr_target_valid = false;  // 标记是否已成功获取 PC 地址
+
 // 支持的 key 映射
 static const std::unordered_map<std::string, Motor::PIDType> pid_key_map = {
     {"stb",     Motor::PIDType::STB},
@@ -176,6 +181,59 @@ static void parse_pid_obj_and_apply(const std::string &name, cJSON *obj) {
              name.c_str(), target->P, target->I, target->D);
 }
 
+// 周期性发送遥测数据
+static void send_telemetry_data(int sock) {
+    if (!pc_addr_target_valid) {
+        ESP_LOGD(TAG, "PC target address not set yet. Skipping telemetry.");
+        return;
+    }
+
+    Motor& m = Motor::getInstance();
+
+    // 接口获取实时数据
+    float current_pitch = m.getPitch();
+    float current_speed = m.getSpeed();
+    // float current_ql = m.getCurrentQL();
+    // float current_qr = m.getCurrentQR();
+
+    // 创建 JSON 结构
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "cmd", "telemetry");
+
+    cJSON *payload = cJSON_CreateObject();
+
+    // 【发送 Pitch】
+    cJSON_AddNumberToObject(payload, "pitch", current_pitch);
+    cJSON_AddNumberToObject(payload, "speed", current_speed);
+
+    // 发送电流
+    // cJSON *currents = cJSON_CreateObject();
+    // cJSON_AddNumberToObject(currents, "ql", current_ql);
+    // cJSON_AddNumberToObject(currents, "qr", current_qr);
+    // cJSON_AddItemToObject(payload, "current", currents);
+
+    cJSON_AddItemToObject(root, "payload", payload);
+
+    char *json_string = cJSON_PrintUnformatted(root);
+
+    if (json_string) {
+        // 使用记录的 pc_addr_target 发送数据
+        ssize_t sent = sendto(sock, json_string, strlen(json_string), 0,
+                              (const struct sockaddr*)&pc_addr_target, sizeof(pc_addr_target));
+        if (sent < 0) {
+            ESP_LOGE(TAG, "sendto failed to PC %s:%d: errno=%d",
+                     inet_ntoa(pc_addr_target.sin_addr),
+                     CONFIG_PID_TUNER_UDP_PORT,
+                     errno);
+        } else {
+            ESP_LOGD(TAG, "Telemetry sent %d bytes to PC.", (int)sent);
+        }
+        free(json_string);
+    }
+
+    cJSON_Delete(root);
+}
+
 // 解析 JSON：支持两种格式（批量 & 单条）
 static void handle_json_payload(const char *json_str, int sockfd, const struct sockaddr_in *src_addr, socklen_t src_len) {
     if (!json_str) return;
@@ -204,6 +262,17 @@ static void handle_json_payload(const char *json_str, int sockfd, const struct s
                 float midpoint = (float)midpoint_item->valuedouble;
                 Motor::getInstance().setMidpoint(midpoint);
                 ESP_LOGI(TAG, "Set balance midpoint to %.6f", midpoint);
+            }
+            // 记录发送方 PC 的 IP 地址，用于遥测发送
+            if (src_addr && src_len == sizeof(struct sockaddr_in)) {
+                // 记录 PC 的地址
+                memcpy(&pc_addr_target, src_addr, src_len);
+                // 确保目标端口使用配置宏
+                pc_addr_target.sin_port = htons(CONFIG_PID_TUNER_UDP_PORT);
+                pc_addr_target_valid = true;
+
+                ESP_LOGI(TAG, "PC Target IP recorded: %s:%d for telemetry.",
+                         inet_ntoa(pc_addr_target.sin_addr), CONFIG_PID_TUNER_UDP_PORT);
             }
             // 发送 ACK（可选）
             if (sockfd >= 0 && src_addr) {
@@ -270,6 +339,10 @@ static void pid_udp_task(void *arg) {
         return;
     }
 
+    // 【关键修改】: 设置 Socket 为非阻塞模式
+    int flags = fcntl(sock, F_GETFL, 0);
+    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+
     struct sockaddr_in server_addr;
     bzero(&server_addr, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
@@ -287,24 +360,42 @@ static void pid_udp_task(void *arg) {
 
     ESP_LOGI(TAG, "PID tuner UDP server started on port %d, max msg %d", CONFIG_PID_TUNER_UDP_PORT, rx_len);
 
+    // 遥测周期：50ms (20Hz)
+    const TickType_t xDelay = pdMS_TO_TICKS(50);
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+
     while (1) {
+        // ----------------------------------------
+        // 1. 【接收逻辑 - 非阻塞轮询】
+        // ----------------------------------------
         struct sockaddr_in src_addr;
         socklen_t addrlen = sizeof(src_addr);
         ssize_t len = recvfrom(sock, rxbuf, rx_len - 1, 0, (struct sockaddr*)&src_addr, &addrlen);
-        if (len < 0) {
+        if (len > 0) {
+            // 收到数据，进行处理
+            if (len >= rx_len) len = rx_len - 1;
+            rxbuf[len] = '\0';
+
+            ESP_LOGD(TAG, "Received %d bytes from %s:%d", (int)len, inet_ntoa(src_addr.sin_addr), ntohs(src_addr.sin_port));
+            ESP_LOGI(TAG, "JSON: %s", rxbuf);
+
+            handle_json_payload(rxbuf, sock, &src_addr, addrlen);
+        } else if (len < 0 && errno != EWOULDBLOCK) {
+            // EWOULDBLOCK 表示没有数据，是正常情况。
+            // 只有其他错误才需要记录
             ESP_LOGE(TAG, "recvfrom error: errno=%d", errno);
-            vTaskDelay(pdMS_TO_TICKS(10));
-            continue;
         }
-        if (len == 0) continue;
 
-        if (len >= rx_len) len = rx_len - 1;
-        rxbuf[len] = '\0';
+        // ----------------------------------------
+        // 2. 【发送逻辑 - 周期发送】
+        // ----------------------------------------
+        send_telemetry_data(sock);
 
-        ESP_LOGD(TAG, "Received %d bytes from %s:%d", (int)len, inet_ntoa(src_addr.sin_addr), ntohs(src_addr.sin_port));
-        ESP_LOGI(TAG, "JSON: %s", rxbuf);
-
-        handle_json_payload(rxbuf, sock, &src_addr, addrlen);
+        // ----------------------------------------
+        // 3. 【精确周期延时】
+        // ----------------------------------------
+        // vTaskDelayUntil 保证任务每隔 xDelay 精确运行一次，弥补任务运行时间带来的误差
+        vTaskDelayUntil(&xLastWakeTime, xDelay);
     }
 
     close(sock);

@@ -123,89 +123,42 @@ int Motor::start_foc_timer()
 
 int Motor::runBalanceTask()
 {
-    // float voltage_control;
-    static unsigned long ctlr_start_ms = 0;
-    int rc = 0;
-    float speed = 0;
     static size_t count = 0;
+    /* ---------- 外环状态 ---------- */
+    static float target_pitch = mid_value_;
+    static float steering_out = 0.0f;
 
-    float mpu_pitch = imu_->getPitch();
+    float pitch      = imu_->getPitch();
+    float gyro_pitch = imu_->lowPassGyroPitch();
+    float gyro_yaw   = imu_->lowPassGyroZ();
 
-    /* Parallel PID */
-    stb_adj_ = pid_stb_(mid_value_, mpu_pitch, imu_->lowPassGyroPitch());
-
-    /* every 4th loop, run speed and steering PID */
+    /* ---------- 速度外环 ---------- */
     if (count % 4 == 0) {
-        // speed
-        // if (throttle_ != 0) {
-        //     pid_vel_.I = 0;
-        //     ctlr_start_ms = millis();
-        // } else {
-        //     if ((unsigned long)(millis() - ctlr_start_ms) > BALANCE_ENABLE_STEERING_I_TIME) {
-        //         pid_vel_.I = pid_vel_tmp_.I;
-        //     }
-        // }
-        // When rotating in the same direction, one has a positive sign and the other negative, so the speeds are subtracted.
-        speed = (motor_l.shaft_velocity - motor_r.shaft_velocity) / 2.0f;
-        speed_adj_ = pid_vel_(lpf_throttle(throttle_) - speed);
-
-        // steering
-        steering_adj_ = pid_steering_(lpf_steering(steering_), 0.0f, imu_->lowPassGyroZ());
+        current_speed_ = (motor_l.shaft_velocity - motor_r.shaft_velocity) * 0.5f;
+        float speed_out = pid_vel_(lpf_throttle(throttle_) - current_speed_);
+        // speed_out = constrain(speed_out, -MAX_TILT_RAD, MAX_TILT_RAD);
+        target_pitch = mid_value_ + speed_out;
     }
 
-    motor_l.target = 0.2; //-(stb_adj_ + speed_adj_ + steering_adj_);
-    motor_r.target = 0.2; //(stb_adj_ + speed_adj_ - steering_adj_);
+    /* ---------- 姿态内环 ---------- */
+    float balance_out = pid_stb_(target_pitch, pitch, gyro_pitch);
 
-    count++;
-
-    return rc;
-}
-#if 0
-int Motor::runBalanceTask()
-{
-    static size_t count = 0;
-
-    float pitch = imu_->getPitch();                // rad or deg, your units
-    float gyro_pitch = imu_->lowPassGyroPitch();   // 必须用于 D 项
-
-    float speed_l = motor_l.shaft_velocity;
-    float speed_r = motor_r.shaft_velocity;
-    float speed = (speed_l - speed_r) * 0.5f;      // 平均前进速度
-
-    /* -----------------------------
-     * 1) 外环：速度控制（低频）
-     * 速度误差 → 输出期望倾角 theta_ref
-     * ----------------------------- */
-    float theta_ref = mid_value_;                  // mid_value_ 应该是直立时的 pitch setpoint（一般是0）
-
-    if (count % 4 == 0) {                          // 降频外环
-        float throttle_filtered = lpf_throttle(throttle_);
-        float speed_error = throttle_filtered - speed;
-
-        theta_ref += pid_vel_(speed_error);        // 外环给姿态环一个新的目标倾角
-
-        /* 转向（保持并行，只作用差分扭矩）*/
-        float steering_cmd = lpf_steering(steering_);
-        steering_adj_ = pid_steering_(steering_cmd, 0.0f, imu_->lowPassGyroZ());
+    /* ---------- 转向 ---------- */
+    if (count % 4 == 0) {
+        steering_out = pid_steering_(
+            lpf_steering(steering_),
+            0.0f,
+            gyro_yaw
+        );
     }
 
-    /* -----------------------------
-     * 2) 内环：姿态控制（高频）
-     * θ_ref - pitch → 输出扭矩 torque_cmd
-     * ----------------------------- */
-    float theta_err = theta_ref - pitch;
-    float torque_cmd = pid_stb_(theta_err, gyro_pitch);  // PD/PID on the tilt
-
-    /* -----------------------------
-     * 3) 合成左右轮输出
-     * ----------------------------- */
-    motor_l.target = -(torque_cmd) - steering_adj_;
-    motor_r.target = +(torque_cmd) - steering_adj_;
+    motor_l.target = -(balance_out + steering_out);
+    motor_r.target =  (balance_out - steering_out);
 
     count++;
     return 0;
 }
-#endif
+
 void Motor::task()
 {
     BOT_STATUS bot_mode = BOT_FALL;

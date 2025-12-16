@@ -15,9 +15,9 @@ struct PIDParams {
     float I;
     float D;
 };
-inline constexpr PIDParams PID_STB {0.01f, 0.0f, 0.0035}; // (0.0015, 0, 0.003) * 0.6
-inline constexpr PIDParams PID_VEL {0.018f, 0.015f, 0.0f};
-inline constexpr PIDParams PID_STEER {0.02, 0, 0.001};
+inline constexpr PIDParams PID_STB {0.012, 0.0, 0.0012};
+inline constexpr PIDParams PID_VEL {1.5, 1.0, 0.0};
+inline constexpr PIDParams PID_STEER {0.0, 0, 0.001};
 
 constexpr float MOTOR_MAX_TORQUE = 45.0f;
 constexpr int MOTOR_MAX_SPEED = 20;
@@ -73,8 +73,11 @@ public:
         imu_ = imu;
     }
 
+    // used for monitor
     enum class PIDType { STB, VEL, STEER };
     IPID* getPID(PIDType type);
+    float getPitch() { return imu_->getPitch(); }
+    float getSpeed() { return current_speed_; }
 private:
     Motor();
     void task();
@@ -103,6 +106,7 @@ private:
     float mid_value_ = 0.5f; // 偏置参数
     float throttle_ = 0;
     float steering_ = 0;
+    float current_speed_ = 0;
 
     GyroPID pid_stb_;
     PIDController pid_vel_;
