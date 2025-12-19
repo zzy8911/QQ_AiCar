@@ -17,7 +17,12 @@
 
 // Misc
 #define BUILTIN_LED_GPIO        GPIO_NUM_NC
+/*
+ * long press: ResetWifiConfiguration
+ * short press: Start balancing robot
+ */
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0
+#define BATTERY_ADC_GPIO        GPIO_NUM_3
 
 // Display
 #define DISPLAY_BACKLIGHT_PIN   GPIO_NUM_46
@@ -46,6 +51,8 @@
 #define CS0_PHASE_B             GPIO_NUM_5
 #define CS1_PHASE_A             GPIO_NUM_6
 #define CS1_PHASE_B             GPIO_NUM_7
+#define SAMPLE_RESISTOR_VALUE   0.005f  // 5mOhm
+#define SAMPLE_AMPLIFIER_GAIN   50.0f   // 50 times
 
 /* MPU */
 #define IMU_SDA                 GPIO_NUM_48

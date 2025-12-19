@@ -4,6 +4,7 @@
 #include "motor.h"
 #include "controller.h"
 #include "board.h"
+#include "port/esp32_adc_driver.h"
 
 #define TAG "HAL"
 
@@ -18,6 +19,9 @@ void HAL::Init(i2c_master_bus_handle_t i2c_bus)
         CoordinateSystem::X_FORWARD
     );
     imu->init();
+
+    // battery
+    adcInit(BATTERY_ADC_GPIO);
 
     ESP_LOGI(TAG, "init motor...");
     auto& motor = Motor::getInstance();

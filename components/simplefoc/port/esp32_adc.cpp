@@ -5,9 +5,6 @@
 #include <soc/sens_reg.h>
 #include <soc/sens_struct.h>
 
-#define _ADC_VOLTAGE 3.3f
-#define _ADC_RESOLUTION 4095.0f
-
 
 typedef struct ESP32MCPWMCurrentSenseParams {
   int pins[3];

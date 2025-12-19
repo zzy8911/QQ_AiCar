@@ -19,6 +19,7 @@
 #include "self_balancing/hal.h"
 #include "mcp_server.h"
 #include "../../self_balancing/motor.h"
+#include "port/esp32_adc_driver.h"
 
 #if defined(LCD_TYPE_ILI9341_SERIAL)
 #include "esp_lcd_ili9341.h"
@@ -290,6 +291,63 @@ public:
             return &backlight;
         }
         return nullptr;
+    }
+
+    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
+        constexpr int BAT_R1 = 15000; // 上端分压电阻
+        constexpr int BAT_R2 = 10000; // 下端分压电阻
+        constexpr float BAT_DIV_RATIO =
+            float(BAT_R1 + BAT_R2) / float(BAT_R2); // = 2.5
+
+        /* ---------- 1. ADC → ADC电压 ---------- */
+        float adc_raw = adcRead(BATTERY_ADC_GPIO);
+        float vadc = adc_raw * (_ADC_VOLTAGE / _ADC_RESOLUTION);
+
+        /* ---------- 2. ADC电压 → 电池电压 ---------- */
+        float battery_vol = vadc * BAT_DIV_RATIO;
+
+        /* ---------- 3. 2S OCV 表 ---------- */
+        struct BatteryOcvPoint {
+            float voltage;
+            uint8_t percent;
+        };
+        static const BatteryOcvPoint kOcvTable[] = {
+            {8.40f, 100},
+            {8.00f, 80},
+            {7.60f, 60},
+            {7.40f, 40},
+            {7.20f, 20},
+            {6.60f, 0},
+        };
+        const int N = sizeof(kOcvTable) / sizeof(kOcvTable[0]);
+
+        /* ---------- 4. 电压 → 百分比 ---------- */
+        if (battery_vol >= kOcvTable[0].voltage) {
+            level = 100;
+        } else if (battery_vol <= kOcvTable[N - 1].voltage) {
+            level = 0;
+        } else {
+            for (int i = 0; i < N - 1; i++) {
+                if (battery_vol <= kOcvTable[i].voltage &&
+                    battery_vol >  kOcvTable[i + 1].voltage) {
+
+                    float v1 = kOcvTable[i].voltage;
+                    float v2 = kOcvTable[i + 1].voltage;
+                    int   p1 = kOcvTable[i].percent;
+                    int   p2 = kOcvTable[i + 1].percent;
+
+                    float ratio = (battery_vol - v2) / (v1 - v2);
+                    level = p2 + ratio * (p1 - p2);
+                    break;
+                }
+            }
+        }
+
+        /* ---------- 5. 充放电状态（占位） ---------- */
+        charging = false;
+        discharging = true;
+
+        return true;
     }
 };
 
