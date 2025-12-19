@@ -175,12 +175,17 @@ private:
 
 
     void InitializeButtons() {
-        boot_button_.OnClick([this]() {
+        boot_button_.OnLongPress([this]() {
+            ESP_LOGI(TAG, "Boot button long pressed. Resetting WiFi configuration.");
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
             app.ToggleChatState();
+        });
+        boot_button_.OnClick([this]() {
+            ESP_LOGI(TAG, "Boot button clicked.");
+            Motor::getInstance().start();
         });
     }
 
@@ -237,7 +242,7 @@ private:
 
 public:
     CompactWifiBoardLCD() :
-        boot_button_(BOOT_BUTTON_GPIO) {
+        boot_button_(BOOT_BUTTON_GPIO, false, 2000, 50) {
         InitializeI2c();
         InitializeSpi();
         InitializeLcdDisplay();

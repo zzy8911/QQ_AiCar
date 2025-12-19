@@ -27,10 +27,12 @@ constexpr int BALANCE_PITCH_THRESHOLD = 60;
 constexpr int BALANCE_WAITTING_TIME = 1000;
 constexpr int BALANCE_ENABLE_STEERING_I_TIME = 3000;
 
-enum BOT_STATUS {
-    BOT_FALL = 0,
-    BOT_WAIT_BALANCE = 1,
-    BOT_BALANCE = 2,
+enum BotState {
+    BOT_UNINIT = 0,     // [生命周期] 刚上电，未调用 init
+    BOT_READY,          // [生命周期] init完成，IMU更新中，电机未使能 (此时 PID Tuner 可见波形)
+    BOT_FALL,           // [运行态] start完成，电机使能，但机器倒地 (PWM=0)
+    BOT_WAIT_BALANCE,   // [运行态] 扶起中，等待进入平衡
+    BOT_BALANCE         // [运行态] 正常平衡控制中
 };
 
 constexpr float WHEEL_RADIUS_M = 0.0325f;  // 65mm 轮子
@@ -54,35 +56,32 @@ public:
     ~Motor();
 
     int init();
-    void setMotion(float speed, float steering);
-    void move(direction_t dir, int distance_cm);
-    void rotate(int angle);
-    void turnAround(void);
-
-    void adjustMidValue(float delta) {
-        mid_value_ += delta;
-    }
-    void setMidpoint(float midpoint) {
-        mid_value_ = midpoint;
-    }
-    float getMidValue() {
-        return mid_value_;
-    }
-
+    int start();
     void attachImu(std::shared_ptr<Imu> imu) {
         imu_ = imu;
     }
 
-    // used for monitor
+    /* used for AI control */
+    void move(direction_t dir, int distance_cm);
+    void rotate(int angle);
+    void turnAround(void);
+
+    /* used for controller control */
+    void setMotion(float speed, float steering);
+
+    /* used for tuner */
     enum class PIDType { STB, VEL, STEER };
     IPID* getPID(PIDType type);
     float getPitch() { return imu_->getPitch(); }
     float getSpeed() { return current_speed_; }
+    void setMidpoint(float midpoint) {
+        mid_value_ = midpoint;
+    }
 private:
     Motor();
     void task();
     void resetAllPid();
-    void checkBalanceStatus(float mpu_pitch, BOT_STATUS &bot_state);
+    void checkBalanceStatus(float mpu_pitch);
     int runBalanceTask();
 
     // Motor objects
@@ -112,9 +111,6 @@ private:
     PIDController pid_vel_;
     PIDController pid_vel_tmp_;
     GyroPID pid_steering_;
-    float stb_adj_ = 0;
-    float speed_adj_  = 0;
-    float steering_adj_ = 0;
 
     LowPassFilter lpf_throttle;
     LowPassFilter lpf_steering;
@@ -123,9 +119,11 @@ private:
 
     // timer for FOC loop
     esp_timer_handle_t foc_timer_;
-    static constexpr uint32_t FOC_TIMER_PERIOD_US = 250; // 选用2kHz控制频率, 4Khz对系统实时性要求比较高，比较吃力了
+    static constexpr uint32_t FOC_TIMER_PERIOD_US = 250; // foc_current选用4kHz控制频率
     static void IRAM_ATTR foc_timer_callback(void* arg);
     int start_foc_timer();
+
+    volatile BotState bot_state_ = BOT_UNINIT;
 };
 
 #endif

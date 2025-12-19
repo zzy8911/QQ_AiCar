@@ -719,10 +719,12 @@ void Application::Start() {
         display->SetChatMessage("system", "");
         // Play the success sound to indicate the device is ready
         ResetDecoder();
+#if !CONFIG_BOARD_TYPE_SELF_BALANCING_ROBOT
         PlaySound(Lang::Sounds::P3_SUCCESS);
+#endif
     }
 
-#ifdef CONFIG_BOARD_TYPE_SELF_BALANCING_ROBOT
+#if CONFIG_BOARD_TYPE_SELF_BALANCING_ROBOT
     HAL::Init(board.GetI2cBus());
 #endif
 

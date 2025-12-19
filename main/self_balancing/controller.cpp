@@ -71,64 +71,37 @@ static void controller_btn_a_handler(ButtonEvent* btn, int event)
 
 static void controller_btn_b_handler(ButtonEvent* btn, int event)
 {
-    // DBot &dbot = DBot::getInstance();
     if (event == ButtonEvent::EVENT_PRESSED) {
-// #ifdef DEBUG
-        Motor::getInstance().adjustMidValue(0.5f);
-        ESP_LOGI(TAG, "mid_value: %f", Motor::getInstance().getMidValue());
-// #endif
     }
 }
 
 static void controller_btn_x_handler(ButtonEvent* btn, int event)
 {
     if (event == ButtonEvent::EVENT_PRESSED) {
-// #ifdef DEBUG
-        Motor::getInstance().adjustMidValue(-0.5f);
-        ESP_LOGI(TAG, "mid_value: %f", Motor::getInstance().getMidValue());
-// #endif
     }
 }
 
 static void controller_btn_dir_up_handler(ButtonEvent* btn, int event)
 {
     if (event == ButtonEvent::EVENT_PRESSED) {
-#ifdef DEBUG
-        pid_vel.P += 0.001;
-        pid_vel.I += 0.0001;
-        ESP_LOGI(TAG, "pid_vel.P: %f", pid_vel.P);
-#endif
     }
 }
 
 static void controller_btn_dir_down_handler(ButtonEvent* btn, int event)
 {
     if (event == ButtonEvent::EVENT_PRESSED) {
-#ifdef DEBUG
-        pid_vel.P -= 0.001;
-        pid_vel.I -= 0.0001;
-        ESP_LOGI(TAG, "pid_vel.P: %f", pid_vel.P);
-#endif
     }
 }
 
 static void controller_btn_dir_left_handler(ButtonEvent* btn, int event)
 {
     if (event == ButtonEvent::EVENT_PRESSED) {
-#ifdef DEBUG
-        pid_stb.D += 0.0001;
-        ESP_LOGI(TAG, "pid_stb.D: %f", pid_stb.D);
-#endif
     }
 }
 
 static void controller_btn_dir_right_handler(ButtonEvent* btn, int event)
 {
     if (event == ButtonEvent::EVENT_PRESSED) {
-#ifdef DEBUG
-        pid_stb.D -= 0.0001;
-        ESP_LOGI(TAG, "pid_stb.D: %f", pid_stb.D);
-#endif
     }
 }
 

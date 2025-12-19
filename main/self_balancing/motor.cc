@@ -2,6 +2,8 @@
 #include <memory>
 #include <algorithm>
 #include "pid_tuner.h"
+#include "application.h"
+#include "assets/lang_config.h"
 
 #define TAG "Motor"
 
@@ -10,8 +12,8 @@ Motor::Motor()
       driver_l(MO0_1, MO0_2, MO0_3), driver_r(MO1_1, MO1_2, MO1_3),
       sensor_l(SPI2_HOST, ENCODER_SCK, ENCODER_MISO, GPIO_NUM_NC, ENCODER_CS0),
       sensor_r(SPI2_HOST, ENCODER_SCK, ENCODER_MISO, GPIO_NUM_NC, ENCODER_CS1),
-      cs_l(0.005, 50.0, 4, 5, NOT_SET),
-      cs_r(0.005, 50.0, 6, 7, NOT_SET),
+      cs_l(SAMPLE_RESISTOR_VALUE, SAMPLE_AMPLIFIER_GAIN, CS0_PHASE_A, CS0_PHASE_B, NOT_SET),
+      cs_r(SAMPLE_RESISTOR_VALUE, SAMPLE_AMPLIFIER_GAIN, CS1_PHASE_A, CS1_PHASE_B, NOT_SET),
       settings("motor", true),
       pid_stb_(PID_STB.P, PID_STB.I, PID_STB.D, MOTOR_MAX_TORQUE),
       pid_vel_(PID_VEL.P, PID_VEL.I, PID_VEL.D, 100000, MOTOR_MAX_TORQUE),
@@ -86,12 +88,10 @@ static void init_motor(BLDCMotor *motor, BLDCDriver3PWM *driver, SensorType *sen
     motor->init();
 }
 
-static void initFOC(BLDCMotor &motor, float offset)
+static void initFOC(BLDCMotor &motor, float offset=NOT_SET)
 {
-    if (offset > 0) {
-        ESP_LOGI(TAG, "has a offset value %.2f.", offset);
-        Direction foc_direction = Direction::CW;
-        motor.initFOC();
+    if (offset != NOT_SET) {
+        motor.initFOC(offset, Direction::CCW); // The direction is CCW
     } else {
         if (motor.initFOC()) {
             ESP_LOGI(TAG, "motor zero electric angle: %.2f", motor.zero_electric_angle);
@@ -161,23 +161,63 @@ int Motor::runBalanceTask()
 
 void Motor::task()
 {
-    BOT_STATUS bot_mode = BOT_FALL;
+    BotState last_state = bot_state_;
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFreq = pdMS_TO_TICKS(10); // 100 Hz
 
     while(1) {
         vTaskDelayUntil(&xLastWakeTime, xFreq);
+        // update IMU
         imu_->update();
-        checkBalanceStatus(imu_->getPitch(), bot_mode);
-        if (bot_mode != BOT_BALANCE) {
-            motor_l.target = 0;
-            motor_r.target = 0;
-            motor_l.PID_current_q.reset();
-            motor_l.PID_current_d.reset();
-            motor_r.PID_current_q.reset();
-            motor_r.PID_current_d.reset();
-        } else if (bot_mode == BOT_BALANCE) {
+        checkBalanceStatus(imu_->getPitch());
+
+        /* ---------- 状态切换（entry action，只执行一次） ---------- */
+        if (last_state != bot_state_) {
+            ESP_LOGI(TAG, "State changed: %d -> %d", last_state, bot_state_);
+
+            switch (bot_state_) {
+            case BOT_FALL:
+                // [倒地状态]
+                motor_l.target = 0;
+                motor_r.target = 0;
+
+                // 清除积分项，防止扶起来瞬间猛冲
+                resetAllPid();
+                motor_l.PID_current_q.reset();
+                motor_l.PID_current_d.reset();
+                motor_r.PID_current_q.reset();
+                motor_r.PID_current_d.reset();
+                break;
+
+            case BOT_BALANCE:
+                // [进入平衡状态]
+                // 强烈建议在这里清一次 PID
+                resetAllPid();
+                break;
+
+            case BOT_READY:
+            case BOT_WAIT_BALANCE:
+            case BOT_UNINIT:
+            default:
+                break;
+            }
+
+            last_state = bot_state_;
+        }
+
+        /* ---------- 状态运行逻辑（loop action，每个周期执行） ---------- */
+        switch (bot_state_) {
+        case BOT_BALANCE:
             runBalanceTask();
+            break;
+
+        case BOT_FALL:
+        case BOT_WAIT_BALANCE:
+        case BOT_READY:
+        case BOT_UNINIT:
+        default:
+            // 空闲 / 安全态
+            break;
         }
     }
 }
@@ -199,6 +239,10 @@ static int vTaskSystemSync()
 
 int Motor::init()
 {
+    if (bot_state_ != BOT_UNINIT) {
+        ESP_LOGW(TAG, "Init ignored: Motor is already inited (current: %d)", bot_state_);
+        return -1;
+    }
     ESP_LOGI(TAG, "Motor starting...");
 
     init_motor(&motor_l, &driver_l, &sensor_l, &cs_l);
@@ -207,25 +251,22 @@ int Motor::init()
 
     float l_offset = settings.GetFloat("l_offset", 0);
     float r_offset = settings.GetFloat("r_offset", 0);
-    if (l_offset != 0 || r_offset != 0) {
-        ESP_LOGI(TAG, "[motor]: set offset %f, %f", l_offset, r_offset);
+    if (l_offset != NOT_SET && r_offset != NOT_SET) {
+        ESP_LOGI(TAG, "Get offset %f, %f", l_offset, r_offset);
         initFOC(motor_l, l_offset);
         initFOC(motor_r, r_offset);
     } else {
-        ESP_LOGI(TAG, "motor: get config failed, try auto calibration.");
+        ESP_LOGI(TAG, "Get offset failed, try auto calibration.");
 
-        initFOC(motor_l, 0);
-        initFOC(motor_r, 0);
+        initFOC(motor_l);
+        initFOC(motor_r);
 
-        settings.SetFloat("l_offset", motor_l.zero_electric_angle); // 0.9157872
-        settings.SetFloat("r_offset", motor_r.zero_electric_angle); // 0.6583844
+        settings.SetFloat("l_offset", motor_l.zero_electric_angle);
+        settings.SetFloat("r_offset", motor_r.zero_electric_angle);
+        ESP_LOGI(TAG, "Save offset %f, %f", motor_l.zero_electric_angle, motor_r.zero_electric_angle);
     }
 
     ESP_LOGI(TAG, "Motor ready.");
-
-    vTaskSystemSync(); // 重要!!!，这个会同步task，没有这个会导致simplefoc运行不正常
-
-    start_foc_timer();
 
     motor_task_stack_ = (StackType_t*) heap_caps_malloc(4096 * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
     if (motor_task_handle_ == nullptr) {
@@ -255,40 +296,62 @@ int Motor::init()
     pid_tuner_start();
 #endif
 
+    Application::GetInstance().PlaySound(Lang::Sounds::P3_SUCCESS);
+
+    bot_state_ = BOT_READY;
+    ESP_LOGI(TAG, "State: UNINIT -> READY");
+
     return 0;
 }
 
-void Motor::checkBalanceStatus(float pitch, BOT_STATUS &bot_state)
+int Motor::start()
+{
+    if (bot_state_ == BOT_READY) {
+        vTaskSystemSync(); // 重要!!!，这个会同步task，没有这个会导致simplefoc运行不正常
+
+        start_foc_timer();
+
+        bot_state_ = BOT_FALL;
+        ESP_LOGI(TAG, "State: READY -> FALL (Control Loop Enabled)");
+
+        return 0;
+    } else {
+        ESP_LOGW(TAG, "Start ignored: Motor is not in READY state (current: %d)", bot_state_);
+        return -1;
+    }
+}
+
+void Motor::checkBalanceStatus(float pitch)
 {
     static unsigned long wait_start_ts = 0;
-    switch (bot_state) {
+    switch (bot_state_) {
     case BOT_FALL:
         // 进入可平衡区，pitch 在阈值范围内
         if (fabs(pitch) < BALANCE_PITCH_THRESHOLD) {
-            bot_state = BOT_WAIT_BALANCE;
+            bot_state_ = BOT_WAIT_BALANCE;
             wait_start_ts = millis();
+            ESP_LOGI(TAG, "State: FALL -> WAIT_BALANCE");
         }
         break;
 
     case BOT_WAIT_BALANCE:
         if (fabs(pitch) >= BALANCE_PITCH_THRESHOLD) {
-            bot_state = BOT_FALL; // 又掉出范围
-            ESP_LOGI(TAG, "pitch: %f, BOT_FALL", pitch);
+            bot_state_ = BOT_FALL; // 又掉出范围
+            ESP_LOGI(TAG, "pitch: %f, State: WAIT_BALANCE -> FALL", pitch);
         } else if (millis() - wait_start_ts >= BALANCE_WAITTING_TIME) {
-            bot_state = BOT_BALANCE; // 等待时间到了，进入平衡
+            bot_state_ = BOT_BALANCE; // 等待时间到了，进入平衡
             resetAllPid();
-            ESP_LOGI(TAG, "BOT_BALANCE");
+            ESP_LOGI(TAG, "State: WAIT_BALANCE -> BALANCE");
         }
         break;
 
     case BOT_BALANCE:
         if (fabs(pitch) >= BALANCE_PITCH_THRESHOLD) {
-            bot_state = BOT_FALL; // 倒了，重新开始
-            ESP_LOGI(TAG, "pitch: %f, BOT_FALL", pitch);
+            bot_state_ = BOT_FALL; // 倒了，重新开始
+            ESP_LOGI(TAG, "pitch: %f, State: BALANCE -> FALL", pitch);
         }
         break;
     default:
-        bot_state = BOT_FALL;
         break;
     }
 }
