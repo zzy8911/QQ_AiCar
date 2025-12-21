@@ -296,13 +296,19 @@ menu "PID Wireless Tuning Settings"
         help
             Enable or disable PID tuning via UDP JSON commands.
 
-    config PID_TUNER_UDP_PORT
-        int "UDP server port"
-        default 7749
-        range 1024 65535
-        depends on PID_TUNER_ENABLE
-        help
-            UDP port on which ESP32 will listen for PID tuning JSON commands.
+        config ESP32_LISTENING_PORT
+            int "ESP32 Listening Port (from PC)"
+            default 7749
+            range 1024 65535
+            help
+                The port where ESP32 listens for PID commands from the PC.
+
+        config PC_LISTENING_PORT
+            int "PC Listening Port (from ESP32)"
+            default 7750
+            range 1024 65535
+            help
+                The port where the PC application listens for telemetry from the ESP32.
 
     endmenu
 

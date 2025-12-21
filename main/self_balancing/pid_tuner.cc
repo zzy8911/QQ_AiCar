@@ -30,24 +30,15 @@ static int do_pid_cmd(int argc, char** argv)
 
     // ====== SHOW ALL ======
     if (sub == "show") {
-        auto* stb   = m.getPID(Motor::PIDType::STB);
-        auto* vel   = m.getPID(Motor::PIDType::VEL);
-        auto* steer = m.getPID(Motor::PIDType::STEER);
+        auto* stb   = m.getPIDParam(Motor::PIDType::STB);
+        auto* vel   = m.getPIDParam(Motor::PIDType::VEL);
+        auto* steer = m.getPIDParam(Motor::PIDType::STEER);
 
         ESP_LOGI(TAG, "===== PID Settings =====");
         ESP_LOGI(TAG, "STB:   P=%.3f I=%.3f D=%.3f", stb->P, stb->I, stb->D);
         ESP_LOGI(TAG, "VEL:   P=%.3f I=%.3f D=%.3f", vel->P, vel->I, vel->D);
         ESP_LOGI(TAG, "STEER: P=%.3f I=%.3f D=%.3f", steer->P, steer->I, steer->D);
         ESP_LOGI(TAG, "=========================");
-        return 0;
-    }
-
-    // ====== RESET ALL ======
-    if (sub == "reset") {
-        m.getPID(Motor::PIDType::STB)->reset();
-        m.getPID(Motor::PIDType::VEL)->reset();
-        m.getPID(Motor::PIDType::STEER)->reset();
-        ESP_LOGI(TAG, "All PID integrators reset.");
         return 0;
     }
 
@@ -61,7 +52,7 @@ static int do_pid_cmd(int argc, char** argv)
         return -1;
     }
 
-    IPID* pid = m.getPID(type);
+    auto* pid = m.getPIDParam(type);
 
     // ====== SHOW ONE PID ======
     if (argc == 2) {
@@ -82,10 +73,11 @@ static int do_pid_cmd(int argc, char** argv)
             ESP_LOGI(TAG, "Unknown parameter: %s (must be p/i/d)", term.c_str());
             return -1;
         }
+        m.updatePIDParam(type, pid->P, pid->I, pid->D);
 
-        if (term == "i" || term == "d") {
-            pid->reset();
-        }
+        // if (term == "i" || term == "d") {
+        //     pid->reset();
+        // }
 
         ESP_LOGI(TAG, "%s.%s = %.4f", sub.c_str(), term.c_str(), value);
         return 0;
@@ -171,14 +163,14 @@ static void parse_pid_obj_and_apply(const std::string &name, cJSON *obj) {
         return;
     }
 
-    IPID* target = m.getPID(type);
-    float v;
-    if (get_number_by_keys(obj, {"p","kp","P","KP"}, v)) target->P = v;
-    if (get_number_by_keys(obj, {"i","ki","I","KI"}, v)) target->I = v;
-    if (get_number_by_keys(obj, {"d","kd","D","KD"}, v)) target->D = v;
+    auto *pid = m.getPIDParam(type);
+    get_number_by_keys(obj, {"p","kp","P","KP"}, pid->P);
+    get_number_by_keys(obj, {"i","ki","I","KI"}, pid->I);
+    get_number_by_keys(obj, {"d","kd","D","KD"}, pid->D);
+    m.updatePIDParam(type, pid->P, pid->I, pid->D);
 
     ESP_LOGI(TAG, "Applied PID '%s' -> kp=%.6f ki=%.6f kd=%.6f",
-             name.c_str(), target->P, target->I, target->D);
+             name.c_str(), pid->P, pid->I, pid->D);
 }
 
 // 周期性发送遥测数据
@@ -223,7 +215,7 @@ static void send_telemetry_data(int sock) {
         if (sent < 0) {
             ESP_LOGE(TAG, "sendto failed to PC %s:%d: errno=%d",
                      inet_ntoa(pc_addr_target.sin_addr),
-                     CONFIG_PID_TUNER_UDP_PORT,
+                     CONFIG_ESP32_LISTENING_PORT,
                      errno);
         } else {
             ESP_LOGD(TAG, "Telemetry sent %d bytes to PC.", (int)sent);
@@ -232,6 +224,52 @@ static void send_telemetry_data(int sock) {
     }
 
     cJSON_Delete(root);
+}
+
+static void send_pid_params(int sock)
+{
+    if (!pc_addr_target_valid) {
+        ESP_LOGD(TAG, "PC target address not set yet. Skipping telemetry.");
+        return;
+    }
+
+    Motor& m = Motor::getInstance();
+
+    const auto *stb   = m.getPID(Motor::PIDType::STB);
+    const auto *vel   = m.getPID(Motor::PIDType::VEL);
+    const auto *steer = m.getPID(Motor::PIDType::STEER);
+    float midpoint    = m.getMidpoint();
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "cmd", "pid");
+
+    cJSON *payload = cJSON_CreateObject();
+
+    auto add_pid = [&](const char *name, const IPID *p) {
+        cJSON *o = cJSON_CreateObject();
+        cJSON_AddNumberToObject(o, "p", p->P);
+        cJSON_AddNumberToObject(o, "i", p->I);
+        cJSON_AddNumberToObject(o, "d", p->D);
+        cJSON_AddItemToObject(payload, name, o);
+    };
+
+    add_pid("stb", stb);
+    add_pid("vel", vel);
+    add_pid("steer", steer);
+
+    cJSON_AddNumberToObject(payload, "midpoint", midpoint);
+    cJSON_AddItemToObject(root, "payload", payload);
+
+    char *json = cJSON_PrintUnformatted(root);
+    if (json) {
+        sendto(sock, json, strlen(json), 0,
+               (const struct sockaddr*)&pc_addr_target, sizeof(pc_addr_target));
+        free(json);
+    }
+
+    cJSON_Delete(root);
+
+    ESP_LOGI(TAG, "PID params sent to PC");
 }
 
 // 解析 JSON：支持两种格式（批量 & 单条）
@@ -245,16 +283,29 @@ static void handle_json_payload(const char *json_str, int sockfd, const struct s
 
     // 优先识别批量命令 {"cmd":"set_pid", "payload":{...}}
     cJSON *cmd = cJSON_GetObjectItemCaseSensitive(root, "cmd");
-    if (cmd && cJSON_IsString(cmd) && strcmp(cmd->valuestring, "set_pid") == 0) {
+
+    // 记录发送方 PC 的 IP 地址，用于遥测发送
+    if (src_len == sizeof(struct sockaddr_in)) {
+        // 记录 PC 的地址
+        memcpy(&pc_addr_target, src_addr, src_len);
+        // 确保目标端口使用配置宏
+        pc_addr_target.sin_port = htons(CONFIG_PC_LISTENING_PORT);
+        pc_addr_target_valid = true;
+
+        ESP_LOGI(TAG, "PC Target IP recorded: %s:%d.",
+                    inet_ntoa(pc_addr_target.sin_addr), CONFIG_PC_LISTENING_PORT);
+    }
+
+    // -------- get_pid --------
+    if (strcmp(cmd->valuestring, "get_pid") == 0) {
+        send_pid_params(sockfd);
+    } else if (cmd && cJSON_IsString(cmd) && strcmp(cmd->valuestring, "set_pid") == 0) {
         cJSON *payload = cJSON_GetObjectItemCaseSensitive(root, "payload");
         if (payload && cJSON_IsObject(payload)) {
             // 遍历 payload 的成员（stb, vel, steer...）
-            cJSON *child = payload->child;
-            while (child) {
-                if (child->string) {
-                    parse_pid_obj_and_apply(child->string, child);
-                }
-                child = child->next;
+            for (cJSON *c = payload->child; c; c = c->next) {
+                if (c->string)
+                    parse_pid_obj_and_apply(c->string, c);
             }
             // midpoing
             cJSON *midpoint_item = cJSON_GetObjectItemCaseSensitive(payload, "midpoint");
@@ -262,17 +313,6 @@ static void handle_json_payload(const char *json_str, int sockfd, const struct s
                 float midpoint = (float)midpoint_item->valuedouble;
                 Motor::getInstance().setMidpoint(midpoint);
                 ESP_LOGI(TAG, "Set balance midpoint to %.6f", midpoint);
-            }
-            // 记录发送方 PC 的 IP 地址，用于遥测发送
-            if (src_addr && src_len == sizeof(struct sockaddr_in)) {
-                // 记录 PC 的地址
-                memcpy(&pc_addr_target, src_addr, src_len);
-                // 确保目标端口使用配置宏
-                pc_addr_target.sin_port = htons(CONFIG_PID_TUNER_UDP_PORT);
-                pc_addr_target_valid = true;
-
-                ESP_LOGI(TAG, "PC Target IP recorded: %s:%d for telemetry.",
-                         inet_ntoa(pc_addr_target.sin_addr), CONFIG_PID_TUNER_UDP_PORT);
             }
             // 发送 ACK（可选）
             if (sockfd >= 0 && src_addr) {
@@ -286,12 +326,11 @@ static void handle_json_payload(const char *json_str, int sockfd, const struct s
                 }
                 cJSON_Delete(ack);
             }
-            cJSON_Delete(root);
-            return;
         }
+    } else {
+        ESP_LOGW(TAG, "Unknown JSON format");
     }
 
-    ESP_LOGW(TAG, "Unknown JSON format");
     cJSON_Delete(root);
 }
 
@@ -347,7 +386,7 @@ static void pid_udp_task(void *arg) {
     bzero(&server_addr, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    server_addr.sin_port = htons(CONFIG_PID_TUNER_UDP_PORT);
+    server_addr.sin_port = htons(CONFIG_ESP32_LISTENING_PORT);
 
     int err = bind(sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
     if (err < 0) {
@@ -358,16 +397,17 @@ static void pid_udp_task(void *arg) {
         return;
     }
 
-    ESP_LOGI(TAG, "PID tuner UDP server started on port %d, max msg %d", CONFIG_PID_TUNER_UDP_PORT, rx_len);
+    ESP_LOGI(TAG, "PID tuner UDP server started on port %d, max msg %d", CONFIG_ESP32_LISTENING_PORT, rx_len);
 
     // 遥测周期：50ms (20Hz)
     const TickType_t xDelay = pdMS_TO_TICKS(50);
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
     while (1) {
-        // ----------------------------------------
-        // 1. 【接收逻辑 - 非阻塞轮询】
-        // ----------------------------------------
+        /*
+         * 1. 【接收逻辑 - 非阻塞轮询】
+         * get_pid/set_pid
+         */
         struct sockaddr_in src_addr;
         socklen_t addrlen = sizeof(src_addr);
         ssize_t len = recvfrom(sock, rxbuf, rx_len - 1, 0, (struct sockaddr*)&src_addr, &addrlen);

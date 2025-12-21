@@ -10,14 +10,14 @@
 #include <memory>
 #include "imu.h"
 
-struct PIDParams {
+typedef struct PIDParams {
     float P;
     float I;
     float D;
-};
+} PIDParams;
 inline constexpr PIDParams PID_STB {0.012, 0.0, 0.0012};
 inline constexpr PIDParams PID_VEL {1.5, 1.0, 0.0};
-inline constexpr PIDParams PID_STEER {0.0, 0, 0.001};
+inline constexpr PIDParams PID_STEER {0.008, 0, 0.001};
 
 constexpr float MOTOR_MAX_TORQUE = 45.0f;
 constexpr int MOTOR_MAX_SPEED = 20;
@@ -25,7 +25,7 @@ constexpr int MOTOR_MAX_STEERING = 50;
 
 constexpr int BALANCE_PITCH_THRESHOLD = 60;
 constexpr int BALANCE_WAITTING_TIME = 1000;
-constexpr int BALANCE_ENABLE_STEERING_I_TIME = 3000;
+constexpr int BALANCE_ENABLE_STEERING_I_TIME = 2000;
 
 enum BotState {
     BOT_UNINIT = 0,     // [生命周期] 刚上电，未调用 init
@@ -72,8 +72,11 @@ public:
     /* used for tuner */
     enum class PIDType { STB, VEL, STEER };
     IPID* getPID(PIDType type);
+    PIDParams* getPIDParam(PIDType type);
+    void updatePIDParam(PIDType type, float p, float i, float d);
     float getPitch() { return imu_->getPitch(); }
     float getSpeed() { return current_speed_; }
+    float getMidpoint() { return mid_value_; };
     void setMidpoint(float midpoint) {
         mid_value_ = midpoint;
     }
@@ -109,8 +112,11 @@ private:
 
     GyroPID pid_stb_;
     PIDController pid_vel_;
-    PIDController pid_vel_tmp_;
     GyroPID pid_steering_;
+    // save tune pid value
+    PIDParams tune_stb_;
+    PIDParams tune_vel_;
+    PIDParams tune_steering_;
 
     LowPassFilter lpf_throttle;
     LowPassFilter lpf_steering;

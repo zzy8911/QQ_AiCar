@@ -25,6 +25,7 @@ public:
 
     float operator() (float error);
     void reset();
+    void resetIntegral() { integral_prev = 0; };
 
     float output_ramp; //!< Maximum speed of change of the output value
     float limit; //!< Maximum output value

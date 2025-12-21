@@ -411,6 +411,11 @@ void Application::Start() {
     auto& board = Board::GetInstance();
     SetDeviceState(kDeviceStateStarting);
 
+#if CONFIG_BOARD_TYPE_SELF_BALANCING_ROBOT
+    // 需要放在StartNetwork之前，没有网的时候也可以遥控玩
+    HAL::Init(board.GetI2cBus());
+#endif
+
     /* Setup the display */
     auto display = board.GetDisplay();
 
@@ -719,14 +724,8 @@ void Application::Start() {
         display->SetChatMessage("system", "");
         // Play the success sound to indicate the device is ready
         ResetDecoder();
-#if !CONFIG_BOARD_TYPE_SELF_BALANCING_ROBOT
         PlaySound(Lang::Sounds::P3_SUCCESS);
-#endif
     }
-
-#if CONFIG_BOARD_TYPE_SELF_BALANCING_ROBOT
-    HAL::Init(board.GetI2cBus());
-#endif
 
     // Print heap stats
     SystemInfo::PrintHeapStats();

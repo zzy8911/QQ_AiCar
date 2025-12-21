@@ -17,8 +17,10 @@ Motor::Motor()
       settings("motor", true),
       pid_stb_(PID_STB.P, PID_STB.I, PID_STB.D, MOTOR_MAX_TORQUE),
       pid_vel_(PID_VEL.P, PID_VEL.I, PID_VEL.D, 100000, MOTOR_MAX_TORQUE),
-      pid_vel_tmp_(PID_VEL.P, PID_VEL.I, PID_VEL.D, 100000, MOTOR_MAX_TORQUE),
       pid_steering_(PID_STEER.P, PID_STEER.I, PID_STEER.D, MOTOR_MAX_TORQUE / 2),
+      tune_stb_(PID_STB.P, PID_STB.I, PID_STB.D),
+      tune_vel_(PID_VEL.P, PID_VEL.I, PID_VEL.D),
+      tune_steering_(PID_STEER.P, PID_STEER.I, PID_STEER.D),
       lpf_throttle(0.5),
       lpf_steering(0.5) {}
 
@@ -124,6 +126,7 @@ int Motor::start_foc_timer()
 int Motor::runBalanceTask()
 {
     static size_t count = 0;
+    static unsigned long idle_start_ms = 0;
     /* ---------- 外环状态 ---------- */
     static float target_pitch = mid_value_;
     static float steering_out = 0.0f;
@@ -135,6 +138,25 @@ int Motor::runBalanceTask()
     /* ---------- 速度外环 ---------- */
     if (count % 4 == 0) {
         current_speed_ = (motor_l.shaft_velocity - motor_r.shaft_velocity) * 0.5f;
+        // 动态设置pid
+        if (fabs(throttle_) > 0.01f) {
+            // 遥控运动态
+            // 忽略速度环I
+            pid_vel_.I = 0;
+            pid_vel_.resetIntegral();
+            // 直立环P降低一半，运动更丝滑
+            pid_stb_.P = tune_stb_.P / 2.0f;
+            // 刷新时间
+            idle_start_ms = millis();
+        } else {
+            // 不给油门了，静止态
+            if (millis() > idle_start_ms + BALANCE_ENABLE_STEERING_I_TIME) {
+                // 恢复速度环I，原地锁定
+                pid_vel_.I = tune_vel_.I;
+                // 恢复直立环P，直立刚性
+                pid_stb_.P = tune_stb_.P;
+            }
+        }
         float speed_out = pid_vel_(lpf_throttle(throttle_) - current_speed_);
         // speed_out = constrain(speed_out, -MAX_TILT_RAD, MAX_TILT_RAD);
         target_pitch = mid_value_ + speed_out;
@@ -296,8 +318,6 @@ int Motor::init()
     pid_tuner_start();
 #endif
 
-    Application::GetInstance().PlaySound(Lang::Sounds::P3_SUCCESS);
-
     bot_state_ = BOT_READY;
     ESP_LOGI(TAG, "State: UNINIT -> READY");
 
@@ -374,6 +394,40 @@ IPID* Motor::getPID(PIDType type)
         return &pid_steering_;
     }
     return nullptr;
+}
+
+PIDParams* Motor::getPIDParam(PIDType type) {
+    struct PIDParams *target = nullptr;
+    switch (type) {
+        case PIDType::STB:   target = &tune_stb_; break;
+        case PIDType::VEL:   target = &tune_vel_; break;
+        case PIDType::STEER: target = &tune_steering_; break;
+    }
+
+    return target;
+}
+
+void Motor::updatePIDParam(PIDType type, float p, float i, float d) {
+    switch (type) {
+        case PIDType::STB:
+            pid_stb_.P = tune_stb_.P = p;
+            pid_stb_.I = tune_stb_.I = i;
+            pid_stb_.D = tune_stb_.D = d;
+            break;
+
+        case PIDType::VEL:
+            pid_vel_.P = tune_vel_.P = p;
+            pid_vel_.I = tune_vel_.I = i;
+            pid_vel_.D = tune_vel_.D = d;
+            break;
+
+        case PIDType::STEER:
+            pid_steering_.P = tune_steering_.P = p;
+            pid_steering_.I = tune_steering_.I = i;
+            pid_steering_.D = tune_steering_.D = d;
+            break;
+    }
+    ESP_LOGI(TAG, "Tuned parameters synced for type %d", (int)type);
 }
 
 /* controlled by MCP */
