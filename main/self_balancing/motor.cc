@@ -135,21 +135,21 @@ int Motor::runBalanceTask()
     float gyro_pitch = imu_->lowPassGyroPitch();
     float gyro_yaw   = imu_->lowPassGyroZ();
 
-    /* ---------- 速度外环 ---------- */
     if (count % 4 == 0) {
-        current_speed_ = (motor_l.shaft_velocity - motor_r.shaft_velocity) * 0.5f;
-        // 动态设置pid
-        if (fabs(throttle_) > 0.01f) {
+        /* 动态设置pid */
+        bool is_remote_active = (fabs(throttle_) > 0.01f || fabs(steering_) > 0.01f);
+        if (is_remote_active) {
             // 遥控运动态
             // 忽略速度环I
             pid_vel_.I = 0;
             pid_vel_.resetIntegral();
             // 直立环P降低一半，运动更丝滑
-            pid_stb_.P = tune_stb_.P / 2.0f;
+            pid_stb_.P = tune_stb_.P * 0.6f;
+
             // 刷新时间
             idle_start_ms = millis();
         } else {
-            // 不给油门了，静止态
+            // 静止态
             if (millis() > idle_start_ms + BALANCE_ENABLE_STEERING_I_TIME) {
                 // 恢复速度环I，原地锁定
                 pid_vel_.I = tune_vel_.I;
@@ -157,22 +157,23 @@ int Motor::runBalanceTask()
                 pid_stb_.P = tune_stb_.P;
             }
         }
+
+        /* ---------- 速度外环 ---------- */
+        current_speed_ = (motor_l.shaft_velocity - motor_r.shaft_velocity) * 0.5f;
         float speed_out = pid_vel_(lpf_throttle(throttle_) - current_speed_);
         // speed_out = constrain(speed_out, -MAX_TILT_RAD, MAX_TILT_RAD);
         target_pitch = mid_value_ + speed_out;
-    }
 
-    /* ---------- 姿态内环 ---------- */
-    float balance_out = pid_stb_(target_pitch, pitch, gyro_pitch);
-
-    /* ---------- 转向 ---------- */
-    if (count % 4 == 0) {
+        /* ---------- 转向 ---------- */
         steering_out = pid_steering_(
             lpf_steering(steering_),
             0.0f,
             gyro_yaw
         );
     }
+
+    /* ---------- 姿态内环 ---------- */
+    float balance_out = pid_stb_(target_pitch, pitch, gyro_pitch);
 
     motor_l.target = -(balance_out + steering_out);
     motor_r.target =  (balance_out - steering_out);
