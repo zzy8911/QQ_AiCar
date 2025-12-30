@@ -35,10 +35,10 @@ int BMI270::init(i2c_master_bus_handle_t i2c_handle, SemaphoreHandle_t i2c_semap
     rslt = bmi270_init(&dev_);
     if (rslt != BMI2_OK) return rslt;
 
-    rslt = setGyroConfig(BMI2_GYR_ODR_400HZ, BMI2_GYR_RANGE_500);
+    rslt = setGyroConfig(BMI2_GYR_ODR_800HZ, BMI2_GYR_RANGE_500);
     if (rslt != BMI2_OK) return rslt;
 
-    rslt = setAccelConfig(BMI2_ACC_ODR_400HZ, BMI2_ACC_RANGE_2G);
+    rslt = setAccelConfig(BMI2_ACC_ODR_800HZ, BMI2_ACC_RANGE_2G);
     if (rslt != BMI2_OK) return rslt;
 
     initScales(500, 2.0); // 500 dps, 2g

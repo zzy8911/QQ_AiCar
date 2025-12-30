@@ -184,7 +184,8 @@ static void send_telemetry_data(int sock) {
 
     // 接口获取实时数据
     float current_pitch = m.getPitch();
-    float current_speed = m.getSpeed();
+    float current_motor_l_speed = m.getMotorLeftSpeed();
+    float current_motor_r_speed = m.getMotorRightSpeed();
     // float current_ql = m.getCurrentQL();
     // float current_qr = m.getCurrentQR();
 
@@ -196,7 +197,8 @@ static void send_telemetry_data(int sock) {
 
     // 【发送 Pitch】
     cJSON_AddNumberToObject(payload, "pitch", current_pitch);
-    cJSON_AddNumberToObject(payload, "speed", current_speed);
+    cJSON_AddNumberToObject(payload, "motor_left_speed", current_motor_l_speed);
+    cJSON_AddNumberToObject(payload, "motor_right_speed", current_motor_r_speed);
 
     // 发送电流
     // cJSON *currents = cJSON_CreateObject();
@@ -343,7 +345,7 @@ static bool is_wifi_connected()
         WIFI_CONNECTED_BIT,
         pdFALSE,
         pdTRUE,
-        10000 / portTICK_PERIOD_MS   // 10 秒超时，避免卡死
+        20000 / portTICK_PERIOD_MS   // 20 秒超时，避免卡死
     );
 
     if (!(bits & WIFI_CONNECTED_BIT)) {

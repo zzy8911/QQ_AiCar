@@ -7,6 +7,15 @@
 
 #define TAG "Motor"
 
+/*
+ * 控制逻辑
+直立 + 速度 + 转向（并行）
+       ↓
+    目标轮速
+       ↓
+    电流 PID
+ */
+
 Motor::Motor()
     : motor_l(7), motor_r(7),
       driver_l(MO0_1, MO0_2, MO0_3), driver_r(MO1_1, MO1_2, MO1_3),
@@ -103,6 +112,7 @@ static void initFOC(BLDCMotor &motor, float offset=NOT_SET)
 
 void Motor::foc_timer_callback(void* arg) {
     Motor* self = static_cast<Motor*>(arg);
+    // 电流环 4kHz
     self->motor_l.loopFOC();
     self->motor_l.move();
     self->motor_r.loopFOC();
@@ -135,7 +145,7 @@ int Motor::runBalanceTask()
     float gyro_pitch = imu_->lowPassGyroPitch();
     float gyro_yaw   = imu_->lowPassGyroZ();
 
-    if (count % 4 == 0) {
+    if (count % 2 == 0) {
         /* 动态设置pid */
         bool is_remote_active = (fabs(throttle_) > 0.01f || fabs(steering_) > 0.01f);
         if (is_remote_active) {
@@ -159,8 +169,7 @@ int Motor::runBalanceTask()
         }
 
         /* ---------- 速度外环 ---------- */
-        current_speed_ = (motor_l.shaft_velocity - motor_r.shaft_velocity) * 0.5f;
-        float speed_out = pid_vel_(lpf_throttle(throttle_) - current_speed_);
+        float speed_out = pid_vel_(lpf_throttle(throttle_) - (motor_l.shaft_velocity - motor_r.shaft_velocity));
         // speed_out = constrain(speed_out, -MAX_TILT_RAD, MAX_TILT_RAD);
         target_pitch = mid_value_ + speed_out;
 
@@ -186,7 +195,7 @@ void Motor::task()
 {
     BotState last_state = bot_state_;
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFreq = pdMS_TO_TICKS(10); // 100 Hz
+    const TickType_t xFreq = pdMS_TO_TICKS(2); // 500 Hz
 
     while(1) {
         vTaskDelayUntil(&xLastWakeTime, xFreq);
@@ -304,7 +313,7 @@ int Motor::init()
             10,
             motor_task_stack_,
             &motor_task_tcb_,
-            0);
+            1);
         if (motor_task_handle_ == nullptr) {
             ESP_LOGE(TAG, "start motor_run task failed.");
             return -1;

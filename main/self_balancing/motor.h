@@ -15,9 +15,10 @@ typedef struct PIDParams {
     float I;
     float D;
 } PIDParams;
-inline constexpr PIDParams PID_STB {0.012, 0.0, 0.0012};
-inline constexpr PIDParams PID_VEL {1.5, 1.0, 0.0};
-inline constexpr PIDParams PID_STEER {0.008, 0, 0.001};
+inline constexpr PIDParams PID_STB {0.018, 0.0, 0.0014};
+inline constexpr PIDParams PID_VEL {0.7, 0.3, 0.0};
+inline constexpr PIDParams PID_STEER {0.008, 0, 0.002};
+// inline constexpr PIDParams PID_WHEELSPEED {0.07, (0.07f/50.0f), 0}; // ki = kp / 50.0f
 
 constexpr float MOTOR_MAX_TORQUE = 45.0f;
 constexpr int MOTOR_MAX_SPEED = 20;
@@ -75,7 +76,8 @@ public:
     PIDParams* getPIDParam(PIDType type);
     void updatePIDParam(PIDType type, float p, float i, float d);
     float getPitch() { return imu_->getPitch(); }
-    float getSpeed() { return current_speed_; }
+    float getMotorLeftSpeed() { return motor_l.shaft_velocity; }
+    float getMotorRightSpeed() { return motor_r.shaft_velocity; }
     float getMidpoint() { return mid_value_; };
     void setMidpoint(float midpoint) {
         mid_value_ = midpoint;
@@ -108,11 +110,10 @@ private:
     float mid_value_ = 0.5f; // 偏置参数
     float throttle_ = 0;
     float steering_ = 0;
-    float current_speed_ = 0;
 
-    GyroPID pid_stb_;
-    PIDController pid_vel_;
-    GyroPID pid_steering_;
+    GyroPID pid_stb_;           // 直立环
+    PIDController pid_vel_;     // 整车速度环
+    GyroPID pid_steering_;      // 转向环
     // save tune pid value
     PIDParams tune_stb_;
     PIDParams tune_vel_;
