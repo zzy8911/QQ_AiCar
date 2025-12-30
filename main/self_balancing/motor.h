@@ -21,7 +21,7 @@ inline constexpr PIDParams PID_STEER {0.008, 0, 0.002};
 // inline constexpr PIDParams PID_WHEELSPEED {0.07, (0.07f/50.0f), 0}; // ki = kp / 50.0f
 
 constexpr float MOTOR_MAX_TORQUE = 45.0f;
-constexpr int MOTOR_MAX_SPEED = 20;
+constexpr int MOTOR_MAX_SPEED = 40;
 constexpr int MOTOR_MAX_STEERING = 50;
 
 constexpr int BALANCE_PITCH_THRESHOLD = 60;

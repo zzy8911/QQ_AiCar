@@ -30,21 +30,31 @@ int BMI270::init(i2c_master_bus_handle_t i2c_handle, SemaphoreHandle_t i2c_semap
     bmi2_set_i2c_configuration(i2c_handle_, address_, i2c_semaphore_);
 
     rslt = bmi2_interface_init(&dev_, BMI2_I2C_INTF);
+    ESP_LOGI(TAG, "BMI270 interface init result: %d", rslt);
     if (rslt != BMI2_OK) return rslt;
 
     rslt = bmi270_init(&dev_);
+    ESP_LOGI(TAG, "BMI270 device init result: %d", rslt);
     if (rslt != BMI2_OK) return rslt;
 
     rslt = setGyroConfig(BMI2_GYR_ODR_800HZ, BMI2_GYR_RANGE_500);
+    ESP_LOGI(TAG, "BMI270 gyro config result: %d", rslt);
     if (rslt != BMI2_OK) return rslt;
 
     rslt = setAccelConfig(BMI2_ACC_ODR_800HZ, BMI2_ACC_RANGE_2G);
+    ESP_LOGI(TAG, "BMI270 accel config result: %d", rslt);
     if (rslt != BMI2_OK) return rslt;
 
     initScales(500, 2.0); // 500 dps, 2g
 
     uint8_t sensor_list[] = {BMI2_GYRO, BMI2_ACCEL};
     rslt = bmi2_sensor_enable(sensor_list, sizeof(sensor_list), &dev_);
+    ESP_LOGI(TAG, "BMI270 sensor enable result: %d", rslt);
+    if (rslt != BMI2_OK) return rslt;
+
+    // Disable advanced power save mode
+    rslt = bmi2_set_adv_power_save(BMI2_DISABLE, &dev_);
+    ESP_LOGI(TAG, "BMI270 APS disable result: %d", rslt);
     if (rslt != BMI2_OK) return rslt;
 
     ESP_LOGI(TAG, "BMI270 init success.");
