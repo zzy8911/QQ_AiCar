@@ -186,7 +186,14 @@ private:
         });
         boot_button_.OnClick([this]() {
             ESP_LOGI(TAG, "Boot button clicked.");
-            Motor::getInstance().start();
+            static int cnt = 0;
+            if (cnt == 0)
+                HAL::Init(GetI2cBus());
+            if (cnt%2 == 0)
+                Motor::getInstance().start();
+            else
+                Motor::getInstance().stop();
+            cnt++;
         });
     }
 

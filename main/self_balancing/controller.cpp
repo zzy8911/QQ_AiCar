@@ -156,7 +156,7 @@ static void controller_set_motor_status(void)
 void controller_update_task(void *parameter)
 {
     while(1) {
-        xboxController->onLoop();
+        xboxController->onLoop(); // this will effect softAP feature!!!
         if (xboxController->isConnected()) {
             if (xboxController->isWaitingForFirstNotification()) {
                 ESP_LOGI(TAG, "waiting for first notification");

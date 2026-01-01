@@ -58,6 +58,7 @@ public:
 
     int init();
     int start();
+    void stop();
     void attachImu(std::shared_ptr<Imu> imu) {
         imu_ = imu;
     }

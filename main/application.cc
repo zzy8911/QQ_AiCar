@@ -411,11 +411,6 @@ void Application::Start() {
     auto& board = Board::GetInstance();
     SetDeviceState(kDeviceStateStarting);
 
-#if CONFIG_BOARD_TYPE_SELF_BALANCING_ROBOT
-    // 需要放在StartNetwork之前，没有网的时候也可以遥控玩
-    HAL::Init(board.GetI2cBus()); // 这个会影响配网模式无法配网
-#endif
-
     /* Setup the display */
     auto display = board.GetDisplay();
 

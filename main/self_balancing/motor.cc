@@ -343,12 +343,38 @@ int Motor::start()
 
         bot_state_ = BOT_FALL;
         ESP_LOGI(TAG, "State: READY -> FALL (Control Loop Enabled)");
+        ESP_LOGI(TAG, "Motor start.");
 
         return 0;
     } else {
         ESP_LOGW(TAG, "Start ignored: Motor is not in READY state (current: %d)", bot_state_);
         return -1;
     }
+}
+
+void Motor::stop()
+{
+    motor_l.target = 0;
+    motor_r.target = 0;
+
+    if (foc_timer_) {
+        esp_timer_stop(foc_timer_);
+        esp_timer_delete(foc_timer_);
+        foc_timer_ = nullptr;
+    }
+
+    resetAllPid();
+    motor_l.PID_current_q.reset();
+    motor_l.PID_current_d.reset();
+    motor_r.PID_current_q.reset();
+    motor_r.PID_current_d.reset();
+
+    driver_l.disable();
+    driver_r.disable();
+
+    bot_state_ = BOT_READY;
+
+    ESP_LOGI(TAG, "Motor stop.");
 }
 
 void Motor::checkBalanceStatus(float pitch)
