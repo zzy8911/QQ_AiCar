@@ -177,7 +177,16 @@ private:
 
     void InitializeButtons() {
         boot_button_.OnLongPress([this]() {
-            ESP_LOGI(TAG, "Boot button long pressed. Resetting WiFi configuration.");
+            ESP_LOGI(TAG, "Boot button long pressed. Resetting WiFi and Motor configuration.");
+            // clear motor calibration data
+            Settings settings("motor", true);
+            settings.SetFloat("l_offset", NOT_SET);
+            settings.SetFloat("l_ia_offset", NOT_SET);
+            settings.SetFloat("l_ib_offset", NOT_SET);
+            settings.SetFloat("r_offset", NOT_SET);
+            settings.SetFloat("r_ia_offset", NOT_SET);
+            settings.SetFloat("r_ib_offset", NOT_SET);
+
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();

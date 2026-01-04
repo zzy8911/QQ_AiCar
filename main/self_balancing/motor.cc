@@ -99,15 +99,19 @@ static void init_motor(BLDCMotor *motor, BLDCDriver3PWM *driver, SensorType *sen
     motor->init();
 }
 
-static void initFOC(BLDCMotor &motor, float offset=NOT_SET)
+static int initFOC(BLDCMotor &motor, float offset=NOT_SET)
 {
+    int ret = 0;
     if (offset != NOT_SET) {
-        motor.initFOC(offset, Direction::CCW); // The direction is CCW
+        ret = motor.initFOC(offset, Direction::CCW); // The direction is CCW
     } else {
-        if (motor.initFOC()) {
+        // recalibrate
+        ret = motor.initFOC();
+        if (ret == 1) {
             ESP_LOGI(TAG, "motor zero electric angle: %.2f", motor.zero_electric_angle);
         }
     }
+    return ret;
 }
 
 void Motor::foc_timer_callback(void* arg) {
@@ -281,21 +285,56 @@ int Motor::init()
     init_motor(&motor_r, &driver_r, &sensor_r, &cs_r);
     vTaskDelay(100);
 
-    float l_offset = settings.GetFloat("l_offset", 0);
-    float r_offset = settings.GetFloat("r_offset", 0);
-    if (l_offset != NOT_SET && r_offset != NOT_SET) {
-        ESP_LOGI(TAG, "Get offset %f, %f", l_offset, r_offset);
+    // get zero_electric_angle
+    float l_offset = settings.GetFloat("l_offset", NOT_SET);
+    float r_offset = settings.GetFloat("r_offset", NOT_SET);
+    // get current sense offset
+    float l_ia_offset = settings.GetFloat("l_ia_offset", NOT_SET);
+    float l_ib_offset = settings.GetFloat("l_ib_offset", NOT_SET);
+    float r_ia_offset = settings.GetFloat("r_ia_offset", NOT_SET);
+    float r_ib_offset = settings.GetFloat("r_ib_offset", NOT_SET);
+    // 左电机处理
+    if (l_offset != NOT_SET && l_ia_offset != NOT_SET && l_ib_offset != NOT_SET) {
+        ESP_LOGI(TAG, "Left motor zero_electric_angle = %f", l_offset);
+        ESP_LOGI(TAG, "Left motor current sense offset: ia = %f, ib = %f", l_ia_offset, l_ib_offset);
+        cs_l.offset_ia = l_ia_offset;
+        cs_l.offset_ib = l_ib_offset;
+        cs_l.need_calibration = false;
         initFOC(motor_l, l_offset);
+    } else {
+        ESP_LOGI(TAG, "Left motor offsets not set, doing auto calibration.");
+        if (initFOC(motor_l) == 1) {
+            settings.SetFloat("l_offset", motor_l.zero_electric_angle);
+            settings.SetFloat("l_ia_offset", cs_l.offset_ia);
+            settings.SetFloat("l_ib_offset", cs_l.offset_ib);
+            ESP_LOGI(TAG, "Saved left motor offsets: zero_electric_angle = %f, ia = %f, ib = %f",
+                    motor_l.zero_electric_angle, cs_l.offset_ia, cs_l.offset_ib);
+        } else {
+            ESP_LOGE(TAG, "Left motor auto calibration failed.");
+            return -1;
+        }
+    }
+
+    // 右电机处理
+    if (r_offset != NOT_SET && r_ia_offset != NOT_SET && r_ib_offset != NOT_SET) {
+        ESP_LOGI(TAG, "Right motor zero_electric_angle = %f", r_offset);
+        ESP_LOGI(TAG, "Right motor current sense offset: ia = %f, ib = %f", r_ia_offset, r_ib_offset);
+        cs_r.offset_ia = r_ia_offset;
+        cs_r.offset_ib = r_ib_offset;
+        cs_r.need_calibration = false;
         initFOC(motor_r, r_offset);
     } else {
-        ESP_LOGI(TAG, "Get offset failed, try auto calibration.");
-
-        initFOC(motor_l);
-        initFOC(motor_r);
-
-        settings.SetFloat("l_offset", motor_l.zero_electric_angle);
-        settings.SetFloat("r_offset", motor_r.zero_electric_angle);
-        ESP_LOGI(TAG, "Save offset %f, %f", motor_l.zero_electric_angle, motor_r.zero_electric_angle);
+        ESP_LOGI(TAG, "Right motor offsets not set, doing auto calibration.");
+        if (initFOC(motor_r) == 1) {
+            settings.SetFloat("r_offset", motor_r.zero_electric_angle);
+            settings.SetFloat("r_ia_offset", cs_r.offset_ia);
+            settings.SetFloat("r_ib_offset", cs_r.offset_ib);
+            ESP_LOGI(TAG, "Saved right motor offsets: zero_electric_angle = %f, ia = %f, ib = %f",
+                    motor_r.zero_electric_angle, cs_r.offset_ia, cs_r.offset_ib);
+        } else {
+            ESP_LOGE(TAG, "Right motor auto calibration failed.");
+            return -1;
+        }
     }
 
     ESP_LOGI(TAG, "Motor ready.");

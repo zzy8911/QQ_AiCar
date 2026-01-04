@@ -245,6 +245,8 @@ int InlineCurrentSense::driverAlign(float voltage){
 
 void InlineCurrentSense::start() {
     _startADCInline();
-    // calibrate zero offsets
-    calibrateOffsets();
+    if (need_calibration) {
+        // calibrate zero offsets
+        calibrateOffsets();
+    }
 }
