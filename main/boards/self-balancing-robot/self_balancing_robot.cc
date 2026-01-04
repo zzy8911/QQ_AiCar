@@ -188,7 +188,7 @@ private:
             ESP_LOGI(TAG, "Boot button clicked.");
             static int cnt = 0;
             if (cnt == 0)
-                HAL::Init(GetI2cBus());
+                HAL::InitController();
             if (cnt%2 == 0)
                 Motor::getInstance().start();
             else
@@ -260,6 +260,7 @@ public:
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->RestoreBrightness();
         }
+        HAL::InitMotionSystem(i2c_bus_);
     }
 
     virtual Led* GetLed() override {

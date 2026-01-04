@@ -8,11 +8,12 @@
 
 #define TAG "HAL"
 
-void HAL::Init(i2c_master_bus_handle_t i2c_bus)
+// This function uses BLE, which can interfere with SoftAP.
+void HAL::InitController()
 {
     static bool initialized = false;
     if (initialized) {
-        ESP_LOGW(TAG, "HAL already initialized, skipping.");
+        ESP_LOGW(TAG, "HAL controller already initialized, skipping.");
         return;
     }
 
@@ -30,6 +31,18 @@ void HAL::Init(i2c_master_bus_handle_t i2c_bus)
     }
     controller_init(qqcar_ble_addr.empty() ? DEFAULTU_BLE_ADDR : qqcar_ble_addr.c_str());
 
+    initialized = true;
+}
+
+void HAL::InitMotionSystem(i2c_master_bus_handle_t i2c_bus)
+{
+    static bool initialized = false;
+    if (initialized) {
+        ESP_LOGW(TAG, "HAL already initialized, skipping.");
+        return;
+    }
+
+    // imu init
     auto imu = std::make_shared<Imu>(
         i2c_bus,
         nullptr,
@@ -38,9 +51,10 @@ void HAL::Init(i2c_master_bus_handle_t i2c_bus)
     );
     imu->init();
 
-    // battery
+    // battery estimation adc init
     adcInit(BATTERY_ADC_GPIO);
 
+    // motor init
     ESP_LOGI(TAG, "init motor...");
     auto& motor = Motor::getInstance();
     motor.attachImu(imu);

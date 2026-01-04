@@ -10,6 +10,7 @@
 
 namespace HAL
 {
-    void Init(i2c_master_bus_handle_t i2c_bus);
+    void InitMotionSystem(i2c_master_bus_handle_t i2c_bus);
+    void InitController();
 }
 #endif
