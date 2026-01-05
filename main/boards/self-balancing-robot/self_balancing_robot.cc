@@ -198,10 +198,14 @@ private:
             static int cnt = 0;
             if (cnt == 0)
                 HAL::InitController();
-            if (cnt%2 == 0)
+            auto& app = Application::GetInstance();
+            if (cnt%2 == 0) {
                 Motor::getInstance().start();
-            else
+                app.Alert(Lang::Strings::BALANCE_MODE, Lang::Strings::ENABLE_MOTOR, "confident", Lang::Sounds::P3_ENABLE_MOTOR);
+            } else {
                 Motor::getInstance().stop();
+                app.Alert(Lang::Strings::BALANCE_MODE, Lang::Strings::DISABLE_MOTOR, "relaxed", Lang::Sounds::P3_DISABLE_MOTOR);
+            }
             cnt++;
         });
     }
