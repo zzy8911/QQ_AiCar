@@ -102,9 +102,13 @@ Application::~Application() {
         delete background_task_;
     }
     vEventGroupDelete(event_group_);
-    if (audio_loop_task_stack_) {
-        heap_caps_free(audio_loop_task_stack_);
-        audio_loop_task_stack_ = nullptr;
+    if (audio_input_task_stack_) {
+        heap_caps_free(audio_input_task_stack_);
+        audio_input_task_stack_ = nullptr;
+    }
+    if (audio_output_task_stack_) {
+        heap_caps_free(audio_output_task_stack_);
+        audio_output_task_stack_ = nullptr;
     }
 }
 
@@ -294,6 +298,7 @@ void Application::PlaySound(const std::string_view& sound) {
         std::lock_guard<std::mutex> lock(mutex_);
         audio_decode_queue_.emplace_back(std::move(packet));
     }
+    xTaskNotifyGive(audio_output_task_handle_);
 }
 
 void Application::EnterAudioTestingMode() {
@@ -309,6 +314,7 @@ void Application::ExitAudioTestingMode() {
     std::lock_guard<std::mutex> lock(mutex_);
     audio_decode_queue_ = std::move(audio_testing_queue_);
     audio_decode_cv_.notify_all();
+    xTaskNotifyGive(audio_output_task_handle_);
 }
 
 void Application::ToggleChatState() {
@@ -439,18 +445,29 @@ void Application::Start() {
     codec->Start();
 
 #if CONFIG_USE_AUDIO_PROCESSOR
-    audio_loop_task_stack_ = (StackType_t*) heap_caps_malloc(4096 * 2 * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
-    audio_loop_task_handle_ = xTaskCreateStaticPinnedToCore([](void* arg) {
+    audio_input_task_stack_ = (StackType_t*) heap_caps_malloc(4096*2 * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
+    audio_input_task_handle_ = xTaskCreateStaticPinnedToCore([](void* arg) {
         Application* app = (Application*)arg;
-        app->AudioLoop();
+        app->AudioInputLoop();
         vTaskDelete(NULL);
-    }, "audio_loop", 4096 * 2, this, 8, audio_loop_task_stack_, &audio_loop_task_tcb_, 0); // AFE: CORE 0
+    }, "audio_input", 4096*2, this, 8, audio_input_task_stack_, &audio_input_task_tcb_, 0); // AFE: CORE 0
+    audio_output_task_stack_ = (StackType_t*) heap_caps_malloc(4096 * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
+    audio_output_task_handle_ = xTaskCreateStaticPinnedToCore([](void* arg) {
+        Application* app = (Application*)arg;
+        app->AudioOutputLoop();
+        vTaskDelete(NULL);
+    }, "audio_output", 4096, this, 6, audio_output_task_stack_, &audio_output_task_tcb_, 0); // AFE: CORE 0
 #else
     xTaskCreate([](void* arg) {
         Application* app = (Application*)arg;
-        app->AudioLoop();
+        app->AudioInputLoop();
         vTaskDelete(NULL);
-    }, "audio_loop", 4096 * 2, this, 8, &audio_loop_task_handle_);
+    }, "audio_input", 4096, this, 8, &audio_input_task_handle_);
+    xTaskCreate([](void* arg) {
+        Application* app = (Application*)arg;
+        app->AudioOutputLoop();
+        vTaskDelete(NULL);
+    }, "audio_output", 4096, this, 6, &audio_output_task_handle_);
 #endif
 
     /* Start the clock timer to update the status bar */
@@ -491,6 +508,7 @@ void Application::Start() {
         std::lock_guard<std::mutex> lock(mutex_);
         if (device_state_ == kDeviceStateSpeaking && audio_decode_queue_.size() < MAX_AUDIO_PACKETS_IN_QUEUE) {
             audio_decode_queue_.emplace_back(std::move(packet));
+            xTaskNotifyGive(audio_output_task_handle_);
         }
     });
     protocol_->OnAudioChannelOpened([this, codec, &board]() {
@@ -808,11 +826,33 @@ void Application::AudioLoop() {
     }
 }
 
-void Application::OnAudioOutput() {
-    if (busy_decoding_audio_) {
-        return;
+void Application::AudioInputLoop() {
+    while (true) {
+        OnAudioInput();
     }
+}
 
+void Application::AudioOutputLoop() {
+    auto codec = Board::GetInstance().GetAudioCodec();
+    while (true) {
+        // waiting for new audio frame to play
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+        // Continuously play until the queue is empty or the output is turned off.
+        while (codec->output_enabled()) {
+            // Playback one packet
+            if (OnAudioOutput()) {
+                // Wait for the current packet to be played before playing the next one
+                ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+            } else {
+                // No task scheduled → queue empty or output off
+                break;
+            }
+        }
+    }
+}
+
+bool Application::OnAudioOutput() {
     auto now = std::chrono::steady_clock::now();
     auto codec = Board::GetInstance().GetAudioCodec();
     const int max_silence_seconds = 10;
@@ -826,7 +866,8 @@ void Application::OnAudioOutput() {
                 codec->EnableOutput(false);
             }
         }
-        return;
+        // ESP_LOGW(TAG, "Audio decode queue is empty");
+        return false;
     }
 
     auto packet = std::move(audio_decode_queue_.front());
@@ -837,15 +878,15 @@ void Application::OnAudioOutput() {
     // Synchronize the sample rate and frame duration
     SetDecodeSampleRate(packet.sample_rate, packet.frame_duration);
 
-    busy_decoding_audio_ = true;
     if (!background_task_->Schedule([this, codec, packet = std::move(packet)]() mutable {
-        busy_decoding_audio_ = false;
         if (aborted_) {
+            xTaskNotifyGive(audio_output_task_handle_);
             return;
         }
 
         std::vector<int16_t> pcm;
         if (!opus_decoder_->Decode(std::move(packet.payload), pcm)) {
+            xTaskNotifyGive(audio_output_task_handle_);
             return;
         }
         // Resample if the sample rate is different
@@ -861,9 +902,14 @@ void Application::OnAudioOutput() {
         timestamp_queue_.push_back(packet.timestamp);
 #endif
         last_output_time_ = std::chrono::steady_clock::now();
+
+        xTaskNotifyGive(audio_output_task_handle_);
     })) {
-        busy_decoding_audio_ = false;
+        ESP_LOGW(TAG, "Failed to schedule background_task_");
+        return false;
     }
+
+    return true;
 }
 
 void Application::OnAudioInput() {

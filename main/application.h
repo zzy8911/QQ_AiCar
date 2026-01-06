@@ -103,12 +103,18 @@ private:
     bool has_server_time_ = false;
     bool aborted_ = false;
     bool voice_detected_ = false;
-    bool busy_decoding_audio_ = false;
     int clock_ticks_ = 0;
     TaskHandle_t check_new_version_task_handle_ = nullptr;
 
     // Audio encode / decode
-    TaskHandle_t audio_loop_task_handle_ = nullptr;
+#if CONFIG_USE_AUDIO_PROCESSOR
+    StaticTask_t audio_input_task_tcb_;
+    StackType_t* audio_input_task_stack_ = nullptr;
+    StaticTask_t audio_output_task_tcb_;
+    StackType_t* audio_output_task_stack_ = nullptr;
+#endif
+    TaskHandle_t audio_input_task_handle_ = nullptr;
+    TaskHandle_t audio_output_task_handle_ = nullptr;
     BackgroundTask* background_task_ = nullptr;
     std::chrono::steady_clock::time_point last_output_time_;
     std::list<AudioStreamPacket> audio_send_queue_;
@@ -127,12 +133,9 @@ private:
     OpusResampler reference_resampler_;
     OpusResampler output_resampler_;
 
-    StaticTask_t audio_loop_task_tcb_;
-    StackType_t* audio_loop_task_stack_ = nullptr;
-
     void MainEventLoop();
     void OnAudioInput();
-    void OnAudioOutput();
+    bool OnAudioOutput();
     void ResetDecoder();
     void SetDecodeSampleRate(int sample_rate, int frame_duration);
     void CheckNewVersion(Ota& ota);
@@ -140,6 +143,8 @@ private:
     void OnClockTimer();
     void SetListeningMode(ListeningMode mode);
     void AudioLoop();
+    void AudioInputLoop();
+    void AudioOutputLoop();
     void EnterAudioTestingMode();
     void ExitAudioTestingMode();
 };

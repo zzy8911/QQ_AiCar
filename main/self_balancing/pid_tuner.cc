@@ -447,6 +447,6 @@ static void pid_udp_task(void *arg) {
 
 // 启动函数
 void pid_tuner_start(void) {
-    xTaskCreate(pid_udp_task, "pid_udp_task", 4096, NULL, 5, NULL);
+    xTaskCreate(pid_udp_task, "pid_udp_task", 4096, NULL, 2, NULL);
 }
 #endif
