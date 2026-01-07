@@ -56,7 +56,16 @@ static const char* const STATE_STRINGS[] = {
 
 Application::Application() {
     event_group_ = xEventGroupCreate();
-    background_task_ = new BackgroundTask(4096 * 7);
+    audio_decode_task_ = std::make_unique<BackgroundTask>(
+        "audio_decode",
+        4,
+        5 * 4096
+    );
+    audio_encode_task_ = std::make_unique<BackgroundTask>(
+        "audio_encode",
+        3,
+        7 * 4096
+    );
 
 #if CONFIG_USE_DEVICE_AEC
     aec_mode_ = kAecOnDeviceSide;
@@ -97,9 +106,6 @@ Application::~Application() {
     if (clock_timer_handle_ != nullptr) {
         esp_timer_stop(clock_timer_handle_);
         esp_timer_delete(clock_timer_handle_);
-    }
-    if (background_task_ != nullptr) {
-        delete background_task_;
     }
     vEventGroupDelete(event_group_);
     if (audio_input_task_stack_) {
@@ -168,9 +174,8 @@ void Application::CheckNewVersion(Ota& ota) {
                 std::lock_guard<std::mutex> lock(mutex_);
                 audio_decode_queue_.clear();
             }
-            background_task_->WaitForCompletion();
-            delete background_task_;
-            background_task_ = nullptr;
+            audio_decode_task_->WaitForCompletion();
+            audio_encode_task_->WaitForCompletion();
             vTaskDelay(pdMS_TO_TICKS(1000));
 
             ota.StartUpgrade([display](int progress, size_t speed) {
@@ -279,7 +284,7 @@ void Application::PlaySound(const std::string_view& sound) {
             return audio_decode_queue_.empty();
         });
     }
-    background_task_->WaitForCompletion();
+    audio_decode_task_->WaitForCompletion();
 
     const char* data = sound.data();
     size_t size = sound.size();
@@ -549,7 +554,7 @@ void Application::Start() {
                 });
             } else if (strcmp(state->valuestring, "stop") == 0) {
                 Schedule([this]() {
-                    background_task_->WaitForCompletion();
+                    audio_decode_task_->WaitForCompletion();
                     if (device_state_ == kDeviceStateSpeaking) {
                         if (listening_mode_ == kListeningModeManualStop) {
                             SetDeviceState(kDeviceStateIdle);
@@ -638,7 +643,7 @@ void Application::Start() {
                 return;
             }
         }
-        background_task_->Schedule([this, data = std::move(data)]() mutable {
+        audio_encode_task_->Schedule([this, data = std::move(data)]() mutable {
             opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
                 AudioStreamPacket packet;
                 packet.payload = std::move(opus);
@@ -878,7 +883,7 @@ bool Application::OnAudioOutput() {
     // Synchronize the sample rate and frame duration
     SetDecodeSampleRate(packet.sample_rate, packet.frame_duration);
 
-    if (!background_task_->Schedule([this, codec, packet = std::move(packet)]() mutable {
+    if (!audio_decode_task_->Schedule([this, codec, packet = std::move(packet)]() mutable {
         if (aborted_) {
             xTaskNotifyGive(audio_output_task_handle_);
             return;
@@ -905,7 +910,7 @@ bool Application::OnAudioOutput() {
 
         xTaskNotifyGive(audio_output_task_handle_);
     })) {
-        ESP_LOGW(TAG, "Failed to schedule background_task_");
+        ESP_LOGW(TAG, "Failed to schedule audio_decode_task_");
         return false;
     }
 
@@ -921,7 +926,7 @@ void Application::OnAudioInput() {
         std::vector<int16_t> data;
         int samples = OPUS_FRAME_DURATION_MS * 16000 / 1000;
         if (ReadAudio(data, 16000, samples)) {
-            background_task_->Schedule([this, data = std::move(data)]() mutable {
+            audio_encode_task_->Schedule([this, data = std::move(data)]() mutable {
                 opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
                     AudioStreamPacket packet;
                     packet.payload = std::move(opus);
@@ -1028,7 +1033,8 @@ void Application::SetDeviceState(DeviceState state) {
     device_state_ = state;
     ESP_LOGI(TAG, "STATE: %s", STATE_STRINGS[device_state_]);
     // The state is changed, wait for all background tasks to finish
-    background_task_->WaitForCompletion();
+    audio_decode_task_->WaitForCompletion();
+    audio_encode_task_->WaitForCompletion();
 
     auto& board = Board::GetInstance();
     auto display = board.GetDisplay();

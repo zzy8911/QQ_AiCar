@@ -5,7 +5,8 @@
 
 #define TAG "BackgroundTask"
 
-BackgroundTask::BackgroundTask(uint32_t stack_size) {
+BackgroundTask::BackgroundTask(const char* name, UBaseType_t priority, uint32_t stack_size)
+    : name_(name) {
     // 从 PSRAM 分配任务栈
     background_task_stack_ = (StackType_t*) heap_caps_malloc(
         stack_size * sizeof(StackType_t),
@@ -20,18 +21,25 @@ BackgroundTask::BackgroundTask(uint32_t stack_size) {
         [](void* arg) {
             static_cast<BackgroundTask*>(arg)->BackgroundTaskLoop();
         },
-        "background_task",
+        name_,
         stack_size,
         this,
-        2,
+        priority,
         background_task_stack_,
         &background_task_tcb_
     );
     if (background_task_handle_ == nullptr) {
         ESP_LOGE("BackgroundTask", "Failed to create task");
-    }
-    if (esp_ptr_external_ram(background_task_stack_)) {
-        ESP_LOGI("BackgroundTask", "Stack is in PSRAM");
+        heap_caps_free(background_task_stack_);
+        background_task_stack_ = nullptr;
+    } else {
+        ESP_LOGI(TAG,
+            "[%s] created, prio=%u, stack=%lu@%s",
+            name_,
+            priority,
+            stack_size,
+            esp_ptr_external_ram(background_task_stack_) ? "PSRAM" : "INTERNAL"
+        );
     }
 }
 
@@ -82,7 +90,7 @@ void BackgroundTask::WaitForCompletion() {
 }
 
 void BackgroundTask::BackgroundTaskLoop() {
-    ESP_LOGI(TAG, "background_task started");
+    ESP_LOGI(TAG, "[%s] started", name_);
     while (true) {
         std::unique_lock<std::mutex> lock(mutex_);
         condition_variable_.wait(lock, [this]() { return !background_tasks_.empty(); });

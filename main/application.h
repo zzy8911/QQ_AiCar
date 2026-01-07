@@ -82,7 +82,6 @@ public:
     void SetAecMode(AecMode mode);
     bool ReadAudio(std::vector<int16_t>& data, int sample_rate, int samples);
     AecMode GetAecMode() const { return aec_mode_; }
-    BackgroundTask* GetBackgroundTask() const { return background_task_; }
 
 private:
     Application();
@@ -115,7 +114,8 @@ private:
 #endif
     TaskHandle_t audio_input_task_handle_ = nullptr;
     TaskHandle_t audio_output_task_handle_ = nullptr;
-    BackgroundTask* background_task_ = nullptr;
+    std::unique_ptr<BackgroundTask> audio_encode_task_ = nullptr;   // pcm->opus
+    std::unique_ptr<BackgroundTask> audio_decode_task_ = nullptr;   // opus->pcm and playback
     std::chrono::steady_clock::time_point last_output_time_;
     std::list<AudioStreamPacket> audio_send_queue_;
     std::list<AudioStreamPacket> audio_decode_queue_;
