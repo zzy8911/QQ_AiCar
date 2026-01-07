@@ -71,11 +71,11 @@ dependencies:
     rules:
     - if: target in [esp32c3]
 
-  h2zero/esp-nimble-cpp: ^2.3.1
+  h2zero/esp-nimble-cpp: ==2.3.1
 
   ## Required IDF version
   idf:
     version: '>=5.4.0'
 
   nicolaielectronics/bmi270: ^1.0.1
-  zzy8911/esp-wifi-connect: ^2.4.3
+  zzy8911/esp-wifi-connect: ~2.5.0
