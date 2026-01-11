@@ -55,8 +55,13 @@
         "RTC_MODE_OFF":"AEC 关闭",
         "RTC_MODE_ON":"AEC 开启",
 
-        "BALANCE_MODE":"平衡模式",
+        "BALANCE_MODE":"平衡模式 ",
         "ENABLE_MOTOR":"启动电机",
-        "DISABLE_MOTOR":"停止电机"
+        "DISABLE_MOTOR":"停止电机",
+
+        "SPEED_GEAR":"速度档位 ",
+        "GEAR_LOW":"一档",
+        "GEAR_MID":"二档",
+        "GEAR_HIGH":"三档"
     }
 }

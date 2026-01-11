@@ -28,6 +28,8 @@ static ButtonEvent btn_dir_right(5000);
 static StackType_t* controller_update_task_stack_ = nullptr;
 static StaticTask_t controller_update_task_tcb_;
 
+static int gear = 0;
+
 static inline bool btn_a_is_push(void)
 {
     return (xboxController->xboxNotif.btnA == true);
@@ -84,12 +86,22 @@ static void controller_btn_x_handler(ButtonEvent* btn, int event)
 static void controller_btn_dir_up_handler(ButtonEvent* btn, int event)
 {
     if (event == ButtonEvent::EVENT_PRESSED) {
+        gear++;
+        if (gear >= SpeedGear::MAX_SPEED) {
+            gear = SpeedGear::MAX_SPEED-1;
+        }
+        Motor::getInstance().setSpeedGear((SpeedGear)gear);
     }
 }
 
 static void controller_btn_dir_down_handler(ButtonEvent* btn, int event)
 {
     if (event == ButtonEvent::EVENT_PRESSED) {
+        gear--;
+        if (gear < 0) {
+            gear = SpeedGear::SLOW;
+        }
+        Motor::getInstance().setSpeedGear((SpeedGear)gear);
     }
 }
 
@@ -128,7 +140,8 @@ static void controller_set_motor_status(void)
     long now = millis();
 
     // 左摇杆垂直控制速度，右摇杆水平控制方向
-    speed = _map(xboxController->xboxNotif.joyLVert, 0, 65535, -MOTOR_MAX_SPEED, MOTOR_MAX_SPEED);
+    float max_speed = Motor::getInstance().getMaxSpeedByGear();
+    speed = _map(xboxController->xboxNotif.joyLVert, 0, 65535, -max_speed, max_speed);
     steering = _map(xboxController->xboxNotif.joyRHori, 0, 65535, -MOTOR_MAX_STEERING, MOTOR_MAX_STEERING);
 
     if (fabs(speed - last_speed) > 0.1f || fabs(steering - last_steering) > 0.1f) {
@@ -140,7 +153,7 @@ static void controller_set_motor_status(void)
     } else {
         // 没有变化：判断是否持续超过3秒未更新
         if ((now - last_update_time) > 5000) {
-            if (((fabs(speed)>0.01f)&&(fabs(speed)!=MOTOR_MAX_SPEED)) ||
+            if (((fabs(speed)>0.01f)&&(fabs(speed)!=max_speed)) ||
                     ((fabs(steering)>0.01f)&&(fabs(steering)!=MOTOR_MAX_STEERING))) {
                 // 非0状态下卡住，判定为异常断开
                 if (!already_stopped) {

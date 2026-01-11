@@ -21,8 +21,13 @@ inline constexpr PIDParams PID_STEER {0.008, 0, 0.002};
 // inline constexpr PIDParams PID_WHEELSPEED {0.07, (0.07f/50.0f), 0}; // ki = kp / 50.0f
 
 constexpr float MOTOR_MAX_TORQUE = 45.0f;
-constexpr int MOTOR_MAX_SPEED = 40;
 constexpr int MOTOR_MAX_STEERING = 50;
+enum SpeedGear {
+    SLOW = 0,   // 慢走
+    MEDIUM,     // 快走 / 慢跑
+    FAST,       // 跑步
+    MAX_SPEED
+};
 
 constexpr int BALANCE_PITCH_THRESHOLD = 60;
 constexpr int BALANCE_WAITTING_TIME = 1000;
@@ -83,6 +88,8 @@ public:
     void setMidpoint(float midpoint) {
         mid_value_ = midpoint;
     }
+    void setSpeedGear(SpeedGear gear);
+    float getMaxSpeedByGear() const;
 private:
     Motor();
     void task();
@@ -111,6 +118,7 @@ private:
     float mid_value_ = 0.5f; // 偏置参数
     float throttle_ = 0;
     float steering_ = 0;
+    SpeedGear speed_gear_ = SpeedGear::SLOW;
 
     GyroPID pid_stb_;           // 直立环
     PIDController pid_vel_;     // 整车速度环

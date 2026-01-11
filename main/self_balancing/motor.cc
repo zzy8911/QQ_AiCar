@@ -7,6 +7,12 @@
 
 #define TAG "Motor"
 
+static constexpr float SPEED_GEAR_MAX[] = {
+    40.0f,   // ≈ 1.30 m/s
+    60.0f,   // ≈ 1.95 m/s
+    80.0f    // ≈ 2.60 m/s
+};
+
 /*
  * 控制逻辑
 直立 + 速度 + 转向（并行）
@@ -508,12 +514,38 @@ void Motor::updatePIDParam(PIDType type, float p, float i, float d) {
 /* controlled by MCP */
 void Motor::setMotion(float speed, float steering)
 {
-    speed = std::clamp(speed, -static_cast<float>(MOTOR_MAX_SPEED), static_cast<float>(MOTOR_MAX_SPEED));
+    float max_speed = SPEED_GEAR_MAX[static_cast<int>(speed_gear_)];
+    speed = std::clamp(speed, -static_cast<float>(max_speed), static_cast<float>(max_speed));
     steering = std::clamp(steering, -static_cast<float>(MOTOR_MAX_STEERING), static_cast<float>(MOTOR_MAX_STEERING));
 
     throttle_ = speed;
     steering_ = steering;
     ESP_LOGI(TAG, "throttle: %.2f, steering %.2f.", throttle_, steering_);
+}
+
+void Motor::setSpeedGear(SpeedGear gear) {
+    speed_gear_ = gear;
+    auto& app = Application::GetInstance();
+    switch (speed_gear_) {
+        case SpeedGear::SLOW:
+            ESP_LOGI(TAG, "Speed gear set to SLOW.");
+            app.Alert(Lang::Strings::SPEED_GEAR, Lang::Strings::GEAR_LOW, "confident", Lang::Sounds::P3_GEAR_LOW);
+            break;
+        case SpeedGear::MEDIUM:
+            ESP_LOGI(TAG, "Speed gear set to MEDIUM.");
+            app.Alert(Lang::Strings::SPEED_GEAR, Lang::Strings::GEAR_MID, "confident", Lang::Sounds::P3_GEAR_MID);
+            break;
+        case SpeedGear::FAST:
+            ESP_LOGI(TAG, "Speed gear set to FAST.");
+            app.Alert(Lang::Strings::SPEED_GEAR, Lang::Strings::GEAR_HIGH, "confident", Lang::Sounds::P3_GEAR_HIGH);
+            break;
+        default:
+            ESP_LOGW(TAG, "Unknown speed gear: %d", static_cast<int>(speed_gear_));
+            break;
+    }
+}
+float Motor::getMaxSpeedByGear() const {
+    return SPEED_GEAR_MAX[static_cast<int>(speed_gear_)];
 }
 
 /* controlled by AI */
