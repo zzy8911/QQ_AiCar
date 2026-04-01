@@ -8,7 +8,6 @@ idf_component_register(
         .
         common
         current_sense
-        drivers
         port
         sensors
     REQUIRES driver esp_timer esp_adc espressif__i2c_bus
